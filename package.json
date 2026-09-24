@@ -1,0 +1,82 @@
+{
+  "name": "swarm-os-mac",
+  "productName": "SWARM OS",
+  "version": "1.1.0",
+  "description": "SWARM OS agentic harness as a native macOS app, with its bridge built in and free local AI via the runtimes Continue supports.",
+  "main": "app/main/main.cjs",
+  "license": "UNLICENSED",
+  "author": "CartyChris",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CartyChris/swarm-os-mac.git"
+  },
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "bridge": "node bridge/swarm-bridge.mjs --allow-cli --serve-app app/renderer/swarm-os.html",
+    "sync-bridge": "node scripts/sync-bridge.mjs",
+    "test": "node scripts/sync-bridge.mjs --check && node --test test/bridge.test.mjs",
+    "test:e2e": "node --test test/app.e2e.mjs",
+    "test:electron": "node test/electron.smoke.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:dir": "electron-builder --dir --publish never"
+  },
+  "build": {
+    "appId": "dev.swarm-os.mac",
+    "productName": "SWARM OS",
+    "copyright": "Copyright © 2026 CartyChris",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "app/**/*",
+      "bridge/swarm-bridge.mjs",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asarUnpack": [
+      "bridge/**",
+      "app/renderer/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "SWARM OS ${version}"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.0",
+    "playwright-core": "^1.55.0"
+  }
+}
