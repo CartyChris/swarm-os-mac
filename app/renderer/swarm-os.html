@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SWARM OS — Agentic Super Harness</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#05070d">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SWARM OS">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="A single-file agentic AI operating system: chat directly with an orchestrator model that calls other OpenRouter models as tools to build a swarm, with an enforced Definition of Done on every run.">
 <style>
 /* ============================================================================
@@ -387,6 +395,97 @@ body[data-layout=simple] .msg{max-width:100%}
   .working-strip{margin:0 12px}
 }
 @media print{.rail,.composer,.mobile-nav,.toast,.simple-bar,.simple-composer{display:none!important}.app{grid-template-columns:1fr}}
+
+/* ---- Live artifact dock. Lives outside #app so re-renders never reload it. */
+:root{--dock-w:min(46vw,880px)}
+body.dock-open #app,body.dock-open #mobileNav{margin-right:var(--dock-w)}
+body.dock-resizing,body.dock-resizing *{cursor:col-resize!important;user-select:none}
+body.dock-resizing .dock-frame{pointer-events:none}
+.dock{position:fixed;top:0;right:0;bottom:0;width:var(--dock-w);z-index:60;display:flex;flex-direction:column;background:var(--panel2);border-left:1px solid var(--line2);box-shadow:-18px 0 60px rgba(0,0,0,.35);backdrop-filter:blur(var(--blur))}
+.dock[hidden]{display:none}
+.dock.full{left:0;width:auto;z-index:90}
+.dock-grip{position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:2}
+.dock.full .dock-grip{display:none}
+.dock-head{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dock-tabs{display:flex;gap:6px;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin}
+.dock-tab{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;font:600 12px var(--font);color:var(--soft);background:var(--panel3);border:1px solid var(--line);border-radius:999px;padding:6px 11px;cursor:pointer}
+.dock-tab.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.dock-tab .dot,.dock-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:none}
+.dock-tab .dot.busy,.dock-pill .dot.busy{background:var(--accent);animation:dockPulse 1s infinite}
+@keyframes dockPulse{50%{opacity:.25}}
+.dock-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.dock-tools select{width:auto;padding:5px 8px;font-size:12px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);font:700 12px var(--font);padding:6px 11px;cursor:pointer}
+.seg button.active{background:var(--accent);color:#111}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.dock-status{padding:7px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);min-height:32px}
+.dock-status .writing{color:var(--accent)}
+.dock-error{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 14px;background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--text);font-size:12.5px;border-bottom:1px solid var(--line)}
+.dock-error[hidden]{display:none}
+.dock-body{position:relative;flex:1;min-height:0;display:flex}
+.dock-frame{flex:1;width:100%;height:100%;border:0;background:#fff}
+.dock-frame[hidden],.dock-code[hidden],.dock-empty[hidden]{display:none}
+.dock-code{flex:1;margin:0;overflow:auto;padding:14px 16px;font:12.5px/1.55 var(--mono);color:var(--soft);background:rgba(0,0,0,.28);white-space:pre;tab-size:2}
+.dock-empty{margin:auto;max-width:360px;text-align:center;color:var(--muted);padding:30px;font-size:13.5px}
+.dock-pill{position:fixed;right:16px;bottom:18px;z-index:70;display:inline-flex;gap:8px;align-items:center;font:700 12.5px var(--font);color:var(--text);background:var(--panel2);border:1px solid var(--line2);border-radius:999px;padding:10px 15px;box-shadow:var(--shadow);cursor:pointer;max-width:70vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dock-pill[hidden]{display:none}
+.art-card{display:flex;align-items:center;gap:12px;width:100%;max-width:520px;margin:10px 0;padding:11px 14px;text-align:left;color:var(--text);background:var(--panel3);border:1px solid var(--line2);border-radius:var(--r2);cursor:pointer;font:inherit}
+.art-card:hover{border-color:var(--accent)}
+.art-card.writing{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}
+.art-card .art-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent);font-weight:800;flex:none}
+.art-card .art-txt{display:flex;flex-direction:column;min-width:0;flex:1}
+.art-card .art-txt b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art-card .art-txt span{font-size:12px;color:var(--muted)}
+.art-card .art-go{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
+@media (max-width:899px){.dock{left:0;width:auto}.dock-pill{bottom:84px}}
+
+/* ---- chats drawer, message actions, runner, slash menu */
+.chats-scrim{position:fixed;inset:0;z-index:74;background:rgba(0,0,0,.35)}
+.chats-drawer{position:fixed;top:0;left:0;bottom:0;width:min(340px,88vw);z-index:75;display:flex;flex-direction:column;background:var(--panel2);border-right:1px solid var(--line2);box-shadow:18px 0 60px rgba(0,0,0,.4);backdrop-filter:blur(var(--blur))}
+.chats-head{display:flex;justify-content:space-between;align-items:center;padding:14px 12px 10px;font-size:15px}
+.chats-list{flex:1;overflow:auto;padding:0 8px 12px}
+.chat-group{margin:6px 0 10px}.chat-group-h,.chat-group summary{font:700 11px var(--font);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:6px 6px;cursor:default}
+.chat-group summary{cursor:pointer}
+.chat-row{display:flex;align-items:center;gap:4px;border-radius:10px;padding:2px 4px}
+.chat-row:hover,.chat-row.active{background:var(--panel3)}
+.chat-row.active{outline:1px solid var(--line2)}
+.chat-open{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--soft);font:500 13px var(--font);padding:7px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-row.active .chat-open{color:var(--text)}
+.chat-acts{display:flex;gap:1px;opacity:0;transition:opacity .15s}
+.chat-row:hover .chat-acts,.chat-row.active .chat-acts{opacity:1}
+@media (hover:none){.chat-acts{opacity:1}}
+.chat-acts button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px;padding:4px 4px;border-radius:6px}
+.chat-acts button:hover{color:var(--text);background:var(--panel3)}
+.chat-row.editing input{flex:1;padding:6px 8px;font-size:13px}
+.chat-export{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:4px 10px 8px}
+.chat-export button{background:var(--panel3);border:1px solid var(--line);color:var(--soft);border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer}
+.chats-foot{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--line)}
+.msg-actions{display:flex;gap:2px;align-items:center;flex-wrap:wrap;margin-top:4px;opacity:.55;transition:opacity .15s}
+.msg:hover .msg-actions,.msg-actions:focus-within{opacity:1}
+@media (hover:none){.msg-actions{opacity:.85}}
+.msg.user .msg-actions{justify-content:flex-end}
+.msg-actions button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:13px;padding:4px 6px;border-radius:7px;line-height:1}
+.msg-actions button:hover:not(:disabled){color:var(--text);background:var(--panel3)}
+.msg-actions button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.msg-actions button:disabled{opacity:.3;cursor:default}
+.msg-actions .ver{display:inline-flex;align-items:center;gap:2px;font-size:12px;color:var(--muted);margin-right:6px}
+.followups{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:10px}
+.followups .chip{cursor:pointer;text-align:left}
+.edit-box{width:100%;min-height:90px;font:inherit}
+.icon-btn.rec{color:var(--red);animation:dockPulse 1s infinite}
+.run-out{border-top:1px solid var(--line);background:rgba(0,0,0,.25)}
+.run-out .run-head{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;font-size:11.5px;color:var(--muted)}
+.run-out pre{margin:0;padding:8px 12px 12px;max-height:320px;overflow:auto;font:12px/1.5 var(--mono);white-space:pre-wrap;color:var(--soft)}
+.run-out .err{color:var(--red)}
+.math-raw{white-space:nowrap}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
+.slash-pop{position:fixed;z-index:95;display:flex;flex-direction:column;max-height:320px;overflow:auto;background:var(--panel2);border:1px solid var(--line2);border-radius:14px;box-shadow:var(--shadow);padding:6px;backdrop-filter:blur(var(--blur))}
+.slash-pop[hidden]{display:none}
+.slash-pop button{display:flex;gap:10px;align-items:baseline;text-align:left;background:none;border:0;border-radius:9px;padding:8px 10px;color:var(--soft);cursor:pointer;font:13px var(--font)}
+.slash-pop button b{font-family:var(--mono);color:var(--text);min-width:120px}
+.slash-pop button span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slash-pop button.sel,.slash-pop button:hover{background:var(--panel3)}
 </style>
 </head>
 <body>
@@ -851,6 +950,8 @@ export const CLI_AGENTS = {
  */
 export const CMD_DENY = /(^|[;&|\s])(rm\s+-rf\s+\/(?!\w)|mkfs|dd\s+if=|shutdown|reboot|halt|:\(\)\{|chmod\s+-R\s+777\s+\/|curl[^|]*\|\s*(ba)?sh|wget[^|]*\|\s*(ba)?sh)/i;
 
+const APP_ASSETS = { "/manifest.webmanifest": "application/manifest+json", "/sw.js": "text/javascript; charset=utf-8" };
+
 /* ================================================================ BRIDGE */
 export async function startBridge(opts = {}) {
   const env = opts.env || process.env;
@@ -1022,6 +1123,16 @@ export async function startBridge(opts = {}) {
         "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"
       });
       return res.end(html);
+    }
+    /* The app's installable-web-app files, from the same folder. A fixed list,
+       so nothing else beside the app is reachable. */
+    if (APP_FILE && req.method === "GET" && (APP_ASSETS[url.pathname] || /^\/icons\/[a-z0-9-]+\.png$/.test(url.pathname))) {
+      const file = path.join(path.dirname(APP_FILE), url.pathname.slice(1));
+      if (path.relative(path.dirname(APP_FILE), file).startsWith("..")) return send(res, 404, { ok: false, error: "No such route." });
+      let data;
+      try { data = fs.readFileSync(file); } catch { return send(res, 404, { ok: false, error: "No such file." }); }
+      res.writeHead(200, { "Content-Type": APP_ASSETS[url.pathname] || "image/png", "Cache-Control": url.pathname === "/sw.js" ? "no-cache" : "public, max-age=3600" });
+      return res.end(data);
     }
 
     if (url.pathname === "/v1/hello") {
@@ -1766,6 +1877,13 @@ const DEFAULT_SETTINGS = {
      model OpenRouter prices at $0. Anything else is swapped for the best free
      model available, or refused if there is none. Jev is paid, so it is off. */
   freeMode: false, freeAutoSetup: true,
+
+  /* Artifacts. Apps, games, pages, diagrams and documents open in the dock and
+     render live while they are written; chat shows a card in their place. */
+  artifactAutoOpen: true, artifactCards: true,
+
+  /* Chat conveniences (Open WebUI parity). */
+  followUps: true, ttsRate: 1, presets: [], promptLib: [],
   cacheResponses: true, showThinking: true, soundOnDone: false,
   traceEnabled: true,
 
@@ -2036,6 +2154,13 @@ const PROVIDERS = {
     corsNote: "Measured: api.typesafe.ai answers browser preflights with \"Disallowed CORS origin\", so it always routes through the bridge."
   },
 
+  /* Your own named models: a base model plus a system prompt and temperature,
+     made in Library. They appear in every model picker as preset:<id>. */
+  preset: {
+    label: "My presets", short: "MINE", wire: "preset", cors: "direct", auth: "none",
+    note: "Named presets from Library: a base model with its own system prompt."
+  },
+
   custom: {
     label: "Custom OpenAI-compatible", short: "CST", wire: "openai", cors: "direct",
     base: "", chat: "/chat/completions", models: "/models", auth: "bearer",
@@ -2060,6 +2185,7 @@ function parseRef(ref, fallbackProvider) {
 const makeRef = (provider, model) => provider + ":" + model;
 function refLabel(ref) {
   const r = parseRef(ref);
+  if (r.provider === "preset") return "MINE · " + (presetById(r.model)?.name || r.model);
   return (PROVIDERS[r.provider]?.short || r.provider) + " · " + (modelLabel(r.model) || r.model);
 }
 function providerCfg(pid) { return PROVIDERS[pid] || PROVIDERS.openrouter }
@@ -2079,6 +2205,7 @@ function bridgeHasCredential(pid) {
 function providerReady(pid) {
   const p = providerCfg(pid);
   if (p.wire === "cli") return state.bridge.connected && !!state.bridge.allowCli && (state.bridge.clis || []).some(c => c.id === p.cli && c.installed);
+  if (p.wire === "preset") return (state.settings.presets || []).some(x => providerReady(parseRef(x.base).provider));
   // A local runtime is ready only when the bridge actually found it running,
   // so eight local providers do not all pretend to be there.
   if (p.local) return state.bridge.connected && localServer(pid) != null;
@@ -2096,6 +2223,7 @@ function localServer(pid) { return (state.bridge.localServers || []).find(l => l
    OpenRouter and still needs a (free) OpenRouter key. */
 function isFreeRef(ref) {
   const r = typeof ref === "string" ? parseRef(ref) : ref;
+  if (r.provider === "preset") { const pr = presetById(r.model); return pr ? isFreeRef(pr.base) : false }
   const p = providerCfg(r.provider);
   if (p.local || p.free) return true;
   if (r.provider !== "openrouter") return false;
@@ -2403,7 +2531,7 @@ async function readSSE(res, onEvent, signal) {
     }
   }
 }
-async function consumeOpenAIStream(res, onDelta, signal) {
+async function consumeOpenAIStream(res, onDelta, signal, onTool) {
   let content = "", reasoning = "", usage = null, model = "", finish = null;
   const acc = new Map();
   await readSSE(res, j => {
@@ -2423,10 +2551,11 @@ async function consumeOpenAIStream(res, onDelta, signal) {
       if (tc.function?.arguments) cur.function.arguments += tc.function.arguments;
       acc.set(i, cur);
     }
+    if (onTool && Array.isArray(d.tool_calls) && d.tool_calls.length) onTool(Array.from(acc.values()));
   }, signal);
   return { content, reasoning, usage, model, finish, toolCalls: finishToolCalls(acc) };
 }
-async function consumeAnthropicStream(res, onDelta, signal) {
+async function consumeAnthropicStream(res, onDelta, signal, onTool) {
   let content = "", reasoning = "", model = "", finish = null;
   let inTok = 0, outTok = 0;
   const acc = new Map();
@@ -2444,6 +2573,7 @@ async function consumeAnthropicStream(res, onDelta, signal) {
       else if (d.type === "thinking_delta" && d.thinking) { reasoning += d.thinking; onDelta && onDelta(d.thinking, reasoning, "reasoning") }
       else if (d.type === "input_json_delta" && d.partial_json != null) {
         const cur = acc.get(j.index); if (cur) cur.function.arguments += d.partial_json;
+        if (onTool) onTool(Array.from(acc.values()));
       }
     } else if (type === "message_delta") {
       if (j.delta?.stop_reason) finish = j.delta.stop_reason;
@@ -2538,7 +2668,14 @@ async function callModel(messages, opt = {}) {
   if (RUN.abort && RUN.abort.signal.aborted) throw new Error("Stopped by user");
   if (!opt.ignoreBudget && budgetExceeded()) throw new Error("Budget ceiling of " + fmtMoney(s.budgetUsd) + " reached — raise it in Providers, or turn off Stop on budget.");
 
-  const asked = parseRef(opt.ref || opt.model || s.orchestratorModel);
+  let asked = parseRef(opt.ref || opt.model || s.orchestratorModel);
+  if (asked.provider === "preset") {
+    const pr = presetById(asked.model);
+    if (!pr) throw new Error("Preset '" + asked.model + "' no longer exists — pick another model.");
+    messages = applyPresetToMessages(messages, pr);
+    if (pr.temperature !== "" && pr.temperature != null && !isNaN(Number(pr.temperature))) opt = { ...opt, temperature: Number(pr.temperature) };
+    asked = parseRef(pr.base);
+  }
   const ref = freeGate(asked);
   if (ref !== asked) logEvent("free", "Free mode swapped " + asked.raw + " → " + ref.raw, { level: "info" });
   const chain = [ref];
@@ -2623,8 +2760,8 @@ async function callOne(pid, model, messages, opt) {
       let out;
       if (wantStream && res.body) {
         out = p.wire === "anthropic"
-          ? await consumeAnthropicStream(res, opt.onDelta, RUN.abort && RUN.abort.signal)
-          : await consumeOpenAIStream(res, opt.onDelta, RUN.abort && RUN.abort.signal);
+          ? await consumeAnthropicStream(res, opt.onDelta, RUN.abort && RUN.abort.signal, opt.onToolDelta)
+          : await consumeOpenAIStream(res, opt.onDelta, RUN.abort && RUN.abort.signal, opt.onToolDelta);
         clearTimeout(timer);
       } else {
         const data = await res.json();
@@ -3320,7 +3457,15 @@ HOW TO RUN A SWARM WELL
 - Attribute in your answer: say which model found what when it matters.
 
 HOW TO ANSWER
-Lead with the answer or the decision. Then the reasoning, then what is uncertain. Use markdown headings and tables where they help and nowhere else. When you produce code or a document, call create_artifact so the user gets a real file rather than a wall of chat.
+Lead with the answer or the decision. Then the reasoning, then what is uncertain. Use markdown headings and tables where they help and nowhere else.
+
+ARTIFACTS — THE USER WATCHES THEM BUILD LIVE
+When you make something the user will run, read or keep — an app, a game, a web page, a tool, a diagram, a document, a dataset — write it as ONE complete fenced block with a filename, for example \`\`\`html title="snake.html". It streams into the Artifact panel and renders as you type, so write the file top to bottom, complete, with no placeholders or "rest unchanged" gaps.
+- Apps and games: a single self-contained HTML file (inline CSS and JS; libraries from cdn.jsdelivr.net are fine). Handle keyboard and touch; size to the viewport.
+- React: \`\`\`jsx with a default-exported component. React hooks are in scope and Tailwind classes work. No other npm imports.
+- Diagrams: \`\`\`mermaid. Vector art: \`\`\`svg. Documents and reports: \`\`\`markdown title="report.md". Data: \`\`\`csv or \`\`\`json.
+- To revise, re-emit the whole file with the SAME title; it becomes the next version and the user can compare.
+Keep chat prose short around an artifact; the panel is where the work is. Agents can do the same, or call create_artifact.
 
 HONESTY
 Report what actually happened. If an agent failed, say so. If the swarm disagreed, say so. If you could not verify something, mark it unverified rather than smoothing it over. Never claim a check ran that did not run.${roster}${ws}${mem}
@@ -3568,9 +3713,13 @@ async function runAgent(spec, swarm, opts = {}) {
         tools: toolsSupported ? AGENT_TOOLS : undefined,
         stream: true,
         onDelta: (_d, full, kind) => {
-          if (kind === "content") { agent.output = full; scheduleRender(220) }
+          if (kind === "content") {
+            agent.output = full; scheduleRender(220);
+            liveFromText("agent:" + agent.id, full, { source: R.label + " · " + agent.model, swarmId: swarm?.id, sessionId: swarm?.sessionId, base: R.label });
+          }
           else agent.reasoning = full;
-        }
+        },
+        onToolDelta: calls => liveFromToolCalls("agent:" + agent.id + ":h" + hop, calls, { source: R.label + " · " + agent.model, swarmId: swarm?.id, sessionId: swarm?.sessionId })
       });
       agent.model = res.model || agent.model;
       agent.provider = res.provider || agent.provider;
@@ -3606,6 +3755,8 @@ async function runAgent(spec, swarm, opts = {}) {
   }
   agent.ms = Math.round(performance.now() - started);
   agent.finished = ts();
+  liveFinish("agent:" + agent.id);
+  if (agent.status === "done") await artifactsFromAgent(agent, swarm).catch(() => {});
   endSpan(span, { ok: agent.status === "done", tokens: agent.tokens, cost: agent.cost });
   scheduleRender();
   await saveSwarm(swarm);
@@ -4394,6 +4545,7 @@ function modelOptions(selected, purpose) {
     if (!providerReady(pid)) continue;
     const p = providerCfg(pid);
     if (p.wire === "jev") continue;        // Jev answers questions, it does not converse
+    if (p.wire === "preset") { (state.settings.presets || []).forEach(x => add(makeRef(pid, x.id), x.name, p.label)); continue }
     const list = (state.modelsByProvider[pid] || []).slice(0, 220);
     const ids = list.length ? list.map(m => m.id) : (p.fallbackModels || []);
     ids.forEach(id => add(makeRef(pid, id), modelLabel(id) || id, p.label));
@@ -4644,6 +4796,62 @@ ollama pull qwen2.5-coder:7b</code></pre></div>
   </div>`;
 }
 
+/* ================================================================ LIBRARY
+   Open WebUI's "Workspace": your own model presets, your prompt library, and a
+   leaderboard built from your own thumbs up and down. */
+function renderLibrary() {
+  const s = state.settings;
+  const presets = s.presets || [];
+  const prompts = promptLib();
+  const board = ratingBoard();
+  const baseOpts = modelOptions(state.presetDraftBase || s.defaultAgentModel, "default").replace(/<optgroup label="My presets">[\s\S]*?<\/optgroup>/, "");
+  return `<div class="grid">
+    ${hero("Library", "Your own models, prompts and ratings. A preset is a base model with its own instructions — it appears in every model picker. Prompts appear when you type <span class='mono'>/</span> in the message box.", `<button class="btn" data-action="chats-toggle">☰ Chats</button>`)}
+
+    <div class="panel">
+      <div class="panel-title"><div><h3>Model presets</h3><p>Pick one as the orchestrator or an agent like any other model.</p></div></div>
+      ${presets.length ? `<table class="data"><thead><tr><th>Name</th><th>Base model</th><th>Instructions</th><th></th></tr></thead><tbody>
+        ${presets.map(x => `<tr><td><b>${esc(x.name)}</b><div class="subtle mono">preset:${esc(x.id)}</div></td><td class="mono">${esc(refLabel(x.base))}</td><td class="subtle" style="max-width:420px">${esc(String(x.system || "").slice(0, 160))}${String(x.system || "").length > 160 ? "…" : ""}</td>
+          <td class="row" style="gap:6px"><button class="btn tiny" data-action="preset-use" data-id="${esc(x.id)}">Use for chat</button><button class="btn tiny" data-action="preset-del" data-id="${esc(x.id)}">Delete</button></td></tr>`).join("")}
+      </tbody></table>` : `<div class="empty">No presets yet.</div>`}
+      <div class="cols2" style="margin-top:14px">
+        <div><label>Name</label><input id="presetName" placeholder="Terse code reviewer"></div>
+        <div><label>Base model</label><select id="presetBase">${baseOpts}</select></div>
+      </div>
+      <div style="margin-top:10px"><label>Instructions (system prompt)</label><textarea id="presetSystem" rows="4" placeholder="You review code like a senior engineer. Findings first, ranked by severity. No praise."></textarea></div>
+      <div class="row" style="margin-top:10px;gap:10px"><div style="width:160px"><label>Temperature</label><input id="presetTemp" type="number" step=".1" min="0" max="2" placeholder="default"></div>
+        <button class="btn primary" data-action="preset-add" style="align-self:flex-end">Save preset</button></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><div><h3>Prompt library</h3><p>Type <span class="mono">/</span> then the command. Variables: <span class="mono">{{CURRENT_DATE}}</span>, <span class="mono">{{CURRENT_TIME}}</span>, <span class="mono">{{CURRENT_WEEKDAY}}</span>, <span class="mono">{{CLIPBOARD}}</span>, <span class="mono">{{USER_LANGUAGE}}</span>.</p></div>
+        <button class="btn small" data-action="prompt-reset">Restore defaults</button></div>
+      <div class="list">${prompts.map(x => `<div class="rowitem"><b class="mono" style="min-width:110px">/${esc(x.command)}</b><div style="flex:1;min-width:0"><b>${esc(x.title)}</b><div class="subtle nowrap">${esc(x.content.slice(0, 120))}</div></div><button class="btn tiny" data-action="prompt-del" data-id="${esc(x.id)}">Delete</button></div>`).join("")}</div>
+      <div class="cols2" style="margin-top:14px">
+        <div><label>Command</label><input id="promptCmd" placeholder="standup"></div>
+        <div><label>Title</label><input id="promptTitle" placeholder="Daily standup notes"></div>
+      </div>
+      <div style="margin-top:10px"><label>Prompt</label><textarea id="promptBody" rows="3" placeholder="Turn these notes into a standup for {{CURRENT_WEEKDAY}}:"></textarea></div>
+      <button class="btn primary" data-action="prompt-add" style="margin-top:10px">Add prompt</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><div><h3>Your ratings</h3><p>From 👍 and 👎 on replies. Ranked by the lower bound of a 95% interval, so a model with 3/3 does not outrank one with 40/45.</p></div></div>
+      ${board.length ? `<table class="data"><thead><tr><th>Model</th><th>👍</th><th>👎</th><th>Score</th></tr></thead><tbody>${board.map(r => `<tr><td class="mono">${esc(r.model)}</td><td>${r.up}</td><td>${r.down}</td><td>${(r.score * 100).toFixed(0)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Rate a few replies and the ranking appears here.</div>`}
+    </div>
+
+    <div class="panel">
+      <div class="panel-title"><div><h3>Chat preferences</h3></div></div>
+      <div class="cols2">
+        <label class="check"><input type="checkbox" data-set="followUps" ${s.followUps ? "checked" : ""}>Suggest follow-up questions after each reply</label>
+        <label class="check"><input type="checkbox" data-set="artifactAutoOpen" ${s.artifactAutoOpen !== false ? "checked" : ""}>Open the Artifact panel when something starts being built</label>
+        <label class="check"><input type="checkbox" data-set="artifactCards" ${s.artifactCards !== false ? "checked" : ""}>Show artifact cards in chat instead of the full code</label>
+        <div><label>Read-aloud speed</label><select data-set="ttsRate">${[.8, 1, 1.2, 1.5].map(r => `<option value="${r}" ${Number(s.ttsRate || 1) === r ? "selected" : ""}>${r}×</option>`).join("")}</select></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderBridge() {
   const b = state.bridge;
   const clis = b.clis || [];
@@ -4863,9 +5071,11 @@ function renderSimple() {
   return `<div class="simple">
     <header class="simple-bar">
       <div class="row" style="gap:9px;align-items:center;min-width:0">
+        <button class="icon-btn" data-action="chats-toggle" title="Chats" aria-label="Chats">☰</button>
         <div class="logo" style="width:30px;height:30px;border-radius:9px;font-size:11px">SW</div>
         <b style="font-size:13.5px;letter-spacing:-.02em" class="nowrap">${APP}</b>
         ${ready.length ? "" : `<span class="pill warn">no provider</span>`}
+        ${currentSession().temporary ? `<span class="pill warn" title="This chat is not saved">⏱ temporary</span>` : ""}
         ${state.settings.freeMode ? `<button class="pill ok" data-action="layout-advanced-free" title="Free mode: every call is held to a local or $0 model">FREE</button>` : ""}
       </div>
       <div class="row" style="gap:7px">
@@ -4902,6 +5112,7 @@ function renderSimple() {
           <label class="icon-btn" title="Attach files">📎<input id="chatFiles" type="file" multiple hidden></label>
           <button class="icon-btn ${state.settings.webSearch ? "on" : ""}" data-action="toggle-web" title="Give every agent live web search">🌐</button>
           <button class="icon-btn ${state.settings.includeWorkspace ? "on" : ""}" data-action="toggle-workspace" title="Let agents read your imported files">📁</button>
+          <button class="icon-btn ${REC ? "on rec" : ""}" data-action="voice" title="Dictate">🎤</button>
           ${busy
             ? `<button class="icon-btn stop" data-action="stop" title="Stop">■</button>`
             : `<button class="icon-btn send" data-action="send" title="Send (⌘↵)">↑</button>`}
@@ -4942,6 +5153,7 @@ function renderChatTab() {
   return `<div class="grid">
     ${hero("Chat", "The same conversation as the simple layout, inside the full console. Everything else stays one click away.",
       `<button class="btn" data-action="layout-simple">Open the simple window</button>
+       <button class="btn" data-action="chats-toggle">☰ Chats</button>
        <button class="btn" data-action="new-session">New session</button>
        <button class="btn" data-nav="swarm">Swarm map</button>`)}
     <div class="chat-shell" style="min-height:66dvh">
@@ -4954,6 +5166,7 @@ function renderChatTab() {
           <label class="btn small" style="width:auto;margin:0">Attach<input id="chatFiles" type="file" multiple hidden></label>
           <button class="btn small" data-action="toggle-web">${state.settings.webSearch ? "✓ " : ""}Web</button>
           <button class="btn small" data-action="toggle-workspace">${state.settings.includeWorkspace ? "✓ " : ""}Workspace</button>
+          <button class="btn small ${REC ? "on" : ""}" data-action="voice">🎤 ${REC ? "Listening…" : "Dictate"}</button>
         </div>
       </div>
     </div>
@@ -5749,8 +5962,8 @@ async function runOrchestrator(userText, attachments = []) {
       if (m === session.messages[session.messages.length - 2] && imgs.length && modelInputs(s.orchestratorModel).includes("image")) {
         history.push({ role: "user", content: [{ type: "text", text: m.content }, ...imgs.slice(0, 6).map(a => ({ type: "image_url", image_url: { url: a.dataUrl } }))] });
       } else history.push({ role: "user", content: m.content });
-    } else if (m.role === "assistant" && m.content) {
-      history.push({ role: "assistant", content: m.content });
+    } else if (m.role === "assistant" && msgView(m).content) {
+      history.push({ role: "assistant", content: msgView(m).content });
     }
   }
   const messages = [{ role: "system", content: orchestratorSystem() }, ...history.slice(-24)];
@@ -5772,9 +5985,13 @@ async function runOrchestrator(userText, attachments = []) {
         maxTokens: s.max_tokens,
         onDelta: (_d, full, kind) => {
           if (kind === "reasoning") assistant.reasoning = full;
-          else { assistant.content = full; state.livePreview = extractLiveHtml(full) || state.livePreview }
+          else {
+            assistant.content = full; state.livePreview = extractLiveHtml(full) || state.livePreview;
+            liveFromText("msg:" + assistant.id, full, { source: "Orchestrator", sessionId: session.id, swarmId: swarm.id, base: session.title });
+          }
           scheduleRender(120);
-        }
+        },
+        onToolDelta: calls => liveFromToolCalls("msg:" + assistant.id + ":h" + RUN.hop, calls, { source: "Orchestrator", sessionId: session.id, swarmId: swarm.id })
       });
 
       assistant.model = res.model || s.orchestratorModel;
@@ -5815,6 +6032,7 @@ async function runOrchestrator(userText, attachments = []) {
 
   assistant.content = finalText || assistant.content || "_No response text was returned._";
   assistant.streaming = false;
+  liveFinish("msg:" + assistant.id);
 
   /* ---- The guarantee: this run gets a Definition of Done, no matter what. */
   if (s.requireDoD) {
@@ -5852,6 +6070,7 @@ async function runOrchestrator(userText, attachments = []) {
   RUN.active = false; RUN.abort = null;
   if (s.soundOnDone) beep();
   render();
+  if (!stoppedReason) suggestFollowUps(assistant, session);
 }
 
 function stopRun() {
@@ -5922,6 +6141,7 @@ async function addArtifact({ name, language, content, description, source = "cha
   try { await DB.put("artifacts", a) } catch {}
   if (isHtmlArtifact(a)) state.livePreview = a.content;
   scheduleRender();
+  dockSchedule();
   return a;
 }
 function isHtmlArtifact(a) {
@@ -5939,17 +6159,452 @@ function extractLiveHtml(text) {
   return b ? b.code : "";
 }
 async function artifactsFromMessage(msg, sessionId, swarmId) {
-  const blocks = extractCodeBlocks(msg.content);
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
-    if ((b.code || "").trim().length < 40) continue;      // skip inline snippets
-    const ext = ({ javascript: "js", typescript: "ts", python: "py", rust: "rs", markdown: "md", yaml: "yml", bash: "sh", csharp: "cs", gdscript: "gd" }[b.lang] || b.lang || "txt").replace(/[^a-z0-9]/g, "") || "txt";
+  const sess = state.sessions.find(x => x.id === sessionId);
+  for (const b of artifactBlocks(msg.content, sess?.title)) {
     const a = await addArtifact({
-      name: `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}-${i + 1}.${ext}`,
-      language: b.lang, content: b.code.trim(), source: "chat", sessionId, messageId: msg.id, swarmId
+      name: b.name, language: b.lang || KIND_EXT[b.kind] || "text", content: b.code.replace(/\s+$/, ""),
+      source: "chat", sessionId, messageId: msg.id, swarmId
     });
     msg.artifactIds.push(a.id);
   }
+}
+/* ============================================================================
+   LIVE ARTIFACTS — watch the swarm build.
+
+   Anything a model writes that is an app, a game, a page, a diagram or a
+   document streams into the Artifact dock while it is being written: the code
+   scrolls in on one tab, the running result updates on the other. It works for
+   the orchestrator's own reply, for every agent in a swarm, and for
+   create_artifact tool calls (whose JSON arguments are read as they stream).
+
+   Three rules keep it honest and safe:
+   - The dock lives OUTSIDE #app. render() rebuilds #app many times a second
+     while streaming; a preview inside it would reload each time and a game
+     would never get past its first frame. The dock is updated in place.
+   - Previews run in an iframe sandbox WITHOUT allow-same-origin, so artifact
+     code cannot read this app's storage (where API keys live). For the same
+     reason artifacts are never opened as a top-level blob: URL, which would
+     inherit this origin. Full screen is an overlay instead.
+   - Names come from the model ("```html title=\"snake.html\"", a <title>, a
+     # heading), so a revision of snake.html becomes version 2 of the same
+     artifact instead of a new timestamped file.
+   ========================================================================== */
+const PREVIEW_KINDS = new Set(["html", "svg", "markdown", "mermaid", "react", "json", "csv"]);
+const LIVE = {
+  items: new Map(),          // key -> { key, name, lang, kind, content, status, source, swarmId, sessionId, started, updated }
+  open: false, active: null, view: "preview", follow: true, full: false, paused: false,
+  version: null,             // null = latest; a number pins an older version
+  error: null,               // last runtime error reported by the preview
+  lastSrc: "", lastSrcAt: 0, lastCodeAt: 0, raf: 0, dom: null
+};
+
+function artifactKind(lang, name, content) {
+  const l = String(lang || "").toLowerCase(), e = extOf(name || "");
+  const c = String(content || "");
+  if (["html", "htm", "xhtml"].includes(l) || ["html", "htm"].includes(e)) return "html";
+  if (l === "svg" || e === "svg" || (l === "xml" && /^\s*<svg[\s>]/i.test(c))) return "svg";
+  if (l === "mermaid" || l === "mmd" || e === "mmd" || e === "mermaid") return "mermaid";
+  if (["jsx", "tsx", "react"].includes(l) || ["jsx", "tsx"].includes(e)) return "react";
+  if (["markdown", "md", "mdx"].includes(l) || ["md", "markdown"].includes(e)) return "markdown";
+  if (l === "json" || e === "json") return "json";
+  if (l === "csv" || e === "csv") return "csv";
+  if (!l && /^\s*<!doctype html|^\s*<html[\s>]/i.test(c)) return "html";
+  return "code";
+}
+const KIND_LABEL = { html: "App / page", svg: "SVG", mermaid: "Diagram", react: "React app", markdown: "Document", json: "JSON", csv: "Table", code: "Code" };
+const KIND_EXT = { html: "html", svg: "svg", mermaid: "mmd", react: "jsx", markdown: "md", json: "json", csv: "csv" };
+const LANG_EXT = { javascript: "js", typescript: "ts", python: "py", rust: "rs", markdown: "md", yaml: "yml", bash: "sh", shell: "sh", csharp: "cs", gdscript: "gd", golang: "go", ruby: "rb", kotlin: "kt" };
+
+/* "```html title=\"snake.html\"", "```html snake.html", "```html:snake.html", "```snake.html" */
+function parseFenceInfo(info) {
+  const raw = String(info || "").trim();
+  let lang = "", title = "";
+  const m = raw.match(/^([\w#+.\-]+)?(?::([^\s]+))?\s*(.*)$/) || [];
+  lang = (m[1] || "").toLowerCase(); title = m[2] || "";
+  const rest = m[3] || "";
+  const t = rest.match(/(?:title|file(?:name)?|name)\s*=\s*"([^"]+)"|(?:title|file(?:name)?|name)\s*=\s*'([^']+)'|(?:title|file(?:name)?|name)\s*=\s*(\S+)/i);
+  if (t) title = t[1] || t[2] || t[3];
+  else if (!title && /^[\w.\-]+\.[a-z0-9]{1,6}$/i.test(rest.trim())) title = rest.trim();
+  if (!title && /\.[a-z0-9]{1,6}$/i.test(lang) && lang.includes(".")) { title = lang; lang = langFromExt(extOf(lang)) || extOf(lang) }
+  return { lang, title: title.replace(/[/\\]/g, "-").slice(0, 100) };
+}
+
+/* Every fenced block, including a final one that is still being written. */
+function scanFences(text) {
+  const out = [], src = String(text || "");
+  const re = /(^|\n)[ \t]*(`{3,}|~{3,})([^\n`]*)\n/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const fence = m[2], info = parseFenceInfo(m[3]);
+    const start = m.index + m[0].length;
+    const close = new RegExp("\\n[ \\t]*" + fence[0] + "{" + fence.length + ",}[ \\t]*(?=\\n|$)", "g");
+    close.lastIndex = start - 1;
+    const c = close.exec(src);
+    const code = c ? src.slice(start, c.index) : src.slice(start);
+    out.push({ lang: info.lang, title: info.title, code, closed: !!c, from: m.index + m[1].length, to: c ? c.index + c[0].length : src.length });
+    if (!c) break;
+    re.lastIndex = c.index + c[0].length;
+  }
+  return out;
+}
+
+/* Is this block a thing the user would want to open, rather than an inline snippet? */
+function isArtifactBlock(b) {
+  const kind = artifactKind(b.lang, b.title, b.code);
+  const lines = String(b.code || "").split("\n").length;
+  if (b.title) return lines >= 2;
+  if (["html", "svg", "mermaid", "react"].includes(kind)) return lines >= 3;
+  return lines >= 30;
+}
+function slugify(s, max = 40) {
+  return String(s || "").toLowerCase().replace(/<[^>]+>/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max) || "";
+}
+/* A stable name, so re-emitting the same app later versions it rather than duplicating it. */
+function artifactNameFor(b, i, base) {
+  if (b.title) return b.title;
+  const kind = artifactKind(b.lang, "", b.code);
+  const ext = KIND_EXT[kind] || LANG_EXT[b.lang] || (b.lang || "txt").replace(/[^a-z0-9]/g, "") || "txt";
+  const t = (b.code.match(/<title[^>]*>([^<]{2,80})<\/title>/i) || [])[1]
+         || (kind === "markdown" ? (b.code.match(/^#\s+(.{2,80})$/m) || [])[1] : "")
+         || (kind === "react" ? (b.code.match(/export\s+default\s+function\s+([A-Z]\w{1,40})/) || [])[1] : "");
+  return (slugify(t) || slugify(base) || "artifact") + (t ? "" : "-" + (i + 1)) + "." + ext;
+}
+function artifactBlocks(text, base) {
+  const seen = new Map();
+  return scanFences(text).filter(isArtifactBlock).map((b, i) => {
+    let name = artifactNameFor(b, i, base);
+    const n = seen.get(name) || 0; seen.set(name, n + 1);
+    if (n) name = name.replace(/(\.[^.]+)?$/, "-" + (n + 1) + "$1");
+    return { ...b, name, kind: artifactKind(b.lang, name, b.code) };
+  });
+}
+
+/* Read a JSON string field out of tool-call arguments that are still arriving. */
+function partialJsonField(src, key) {
+  const m = new RegExp('"' + key + '"\\s*:\\s*"').exec(String(src || ""));
+  if (!m) return null;
+  const s = String(src);
+  let i = m.index + m[0].length, out = "";
+  const ESC = { n: "\n", t: "\t", r: "\r", b: "\b", f: "\f", '"': '"', "\\": "\\", "/": "/" };
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') return { value: out, closed: true };
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === undefined) break;
+      if (n === "u") { const hex = s.slice(i + 2, i + 6); if (hex.length < 4) break; out += String.fromCharCode(parseInt(hex, 16)); i += 6; continue }
+      out += ESC[n] ?? n; i += 2; continue;
+    }
+    out += c; i++;
+  }
+  return { value: out, closed: false };
+}
+
+/* ---- feeding the dock from streams ---- */
+function liveUpsert(key, patch) {
+  const prev = LIVE.items.get(key);
+  const item = { ...(prev || { key, started: Date.now(), status: "writing" }), ...patch, updated: Date.now() };
+  item.kind = artifactKind(item.lang, item.name, item.content);
+  LIVE.items.set(key, item);
+  if (!prev && state.settings.artifactAutoOpen !== false && (PREVIEW_KINDS.has(item.kind) || item.kind === "code")) {
+    if (LIVE.follow || !LIVE.open) { LIVE.active = item.name; LIVE.version = null }
+    dockOpen(false);
+  } else if (LIVE.follow && item.status === "writing" && LIVE.active !== item.name && Date.now() - (LIVE.pickedAt || 0) > 4000) {
+    LIVE.active = item.name; LIVE.version = null;
+  }
+  dockSchedule();
+  return item;
+}
+/* Text stream (orchestrator reply or agent output). meta: { source, swarmId, sessionId, base } */
+function liveFromText(prefix, text, meta = {}) {
+  const blocks = artifactBlocks(text, meta.base);
+  blocks.forEach((b, i) => {
+    const key = prefix + "#" + i;
+    const prev = LIVE.items.get(key);
+    if (prev && prev.content === b.code && prev.status === (b.closed ? "done" : "writing")) return;
+    liveUpsert(key, { name: b.name, lang: b.lang, content: b.code, status: b.closed ? "done" : "writing", source: meta.source || "", swarmId: meta.swarmId || null, sessionId: meta.sessionId || null });
+  });
+}
+/* Streaming tool calls: a create_artifact whose content is still arriving. */
+function liveFromToolCalls(prefix, calls, meta = {}) {
+  (calls || []).forEach((c, i) => {
+    if (c?.function?.name !== "create_artifact") return;
+    const args = c.function.arguments || "";
+    const content = partialJsonField(args, "content");
+    if (!content) return;
+    const name = (partialJsonField(args, "name") || {}).value || "artifact-" + (i + 1) + ".txt";
+    const lang = (partialJsonField(args, "language") || {}).value || langFromExt(extOf(name)) || "";
+    liveUpsert(prefix + "@" + i, { name: name.replace(/[/\\]/g, "-").slice(0, 120), lang, content: content.value, status: content.closed ? "done" : "writing", source: meta.source || "", swarmId: meta.swarmId || null, sessionId: meta.sessionId || null });
+  });
+}
+function liveFinish(prefix) {
+  for (const [k, it] of LIVE.items) if (k.startsWith(prefix) && it.status === "writing") { it.status = "done"; it.updated = Date.now() }
+  dockSchedule();
+}
+/* Blocks in an agent's final output become real artifacts too, so an agent that
+   writes its game in a code fence instead of calling create_artifact is not lost. */
+async function artifactsFromAgent(agent, swarm) {
+  const have = new Set(state.artifacts.filter(a => a.swarmId === swarm?.id).map(a => a.content));
+  for (const b of artifactBlocks(agent.output, ROLES[agent.role]?.label || agent.role)) {
+    if (!PREVIEW_KINDS.has(b.kind) && !b.title) continue;
+    const content = b.code.trim();
+    if (have.has(content)) continue;
+    await addArtifact({ name: b.name, language: b.lang || KIND_EXT[b.kind], content, source: "agent:" + agent.role, swarmId: swarm?.id });
+  }
+}
+
+/* ---- what the dock shows: this session's artifacts, newest first, live ones overlaid ---- */
+function dockEntries() {
+  const sess = currentSession();
+  const swarmIds = new Set(state.swarms.filter(sw => sw.sessionId === sess.id).map(sw => sw.id));
+  const byName = new Map();
+  for (const a of state.artifacts) {           // state.artifacts is newest-first; first per name = latest
+    if (a.sessionId !== sess.id && !swarmIds.has(a.swarmId)) continue;
+    if (!byName.has(a.name)) byName.set(a.name, { name: a.name, lang: a.language, content: a.content, status: "done", artifact: a, source: a.source, updated: Date.parse(a.created) || 0 });
+  }
+  for (const it of LIVE.items.values()) {
+    if (it.sessionId && it.sessionId !== sess.id && !swarmIds.has(it.swarmId)) continue;
+    const cur = byName.get(it.name);
+    // A persisted copy wins once the live one is finished and saved.
+    if (cur && it.status !== "writing" && cur.updated >= it.started - 5000) continue;
+    byName.set(it.name, { name: it.name, lang: it.lang, content: it.content, status: it.status, artifact: cur?.artifact || null, source: it.source, updated: it.updated, live: true });
+  }
+  return [...byName.values()].map(e => ({ ...e, kind: artifactKind(e.lang, e.name, e.content) })).sort((a, b) => b.updated - a.updated);
+}
+function dockCurrent() {
+  const list = dockEntries();
+  const e = list.find(x => x.name === LIVE.active) || list[0] || null;
+  if (!e) return { list, e: null, content: "" };
+  let content = e.content, version = e.artifact?.version || (e.live ? null : 1);
+  if (LIVE.version != null && e.artifact) {
+    const h = (e.artifact.history || []).find(x => x.version === LIVE.version);
+    if (h) { content = h.content; version = h.version }
+  }
+  return { list, e, content, version };
+}
+
+/* ---- sandboxed renderers ---- */
+const SANDBOX = "allow-scripts allow-modals allow-pointer-lock allow-popups allow-forms allow-downloads";
+/* Opaque-origin frames throw on localStorage; generated games use it for high
+   scores. Give them an in-memory stand-in, and report runtime errors upward. */
+const FRAME_SHIM = `<script>(function(){function m(){var s=new Map();return{getItem:function(k){return s.has(String(k))?s.get(String(k)):null},setItem:function(k,v){s.set(String(k),String(v))},removeItem:function(k){s.delete(String(k))},clear:function(){s.clear()},key:function(i){return Array.from(s.keys())[i]||null},get length(){return s.size}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].getItem("_")}catch(e){try{Object.defineProperty(window,n,{value:m(),configurable:true})}catch(_){}}});function r(msg){try{parent.postMessage({__swarmArtifact:1,type:"error",message:String(msg).slice(0,600)},"*")}catch(_){}}window.addEventListener("error",function(e){r((e.message||"Error")+(e.lineno?" (line "+e.lineno+")":""))});window.addEventListener("unhandledrejection",function(e){r("Unhandled promise rejection: "+((e.reason&&e.reason.message)||e.reason))});})();<\/script>`;
+const DOC_CSS = `body{font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;margin:0;background:#fbfaf7;color:#1c1f24}article{max-width:760px;margin:0 auto;padding:40px 28px 80px}h1,h2,h3{line-height:1.25;letter-spacing:-.01em}h1{font-size:2em;margin:.2em 0 .6em}table{border-collapse:collapse;width:100%;margin:1em 0}th,td{border:1px solid #d9d6cf;padding:6px 10px;text-align:left}th{background:#f1eee7}code{font:13px ui-monospace,Menlo,monospace;background:#f1eee7;padding:1px 5px;border-radius:5px}pre{background:#1d2129;color:#e8ebf1;padding:14px;border-radius:10px;overflow:auto}pre code{background:none;padding:0;color:inherit}blockquote{border-left:3px solid #d9a441;margin:1em 0;padding:.2em 1em;color:#555}a{color:#0b63c9}img{max-width:100%}.msg-meta,.btn{display:none}@media(prefers-color-scheme:dark){body{background:#12151b;color:#e6e9ef}th{background:#1c2029}th,td{border-color:#2c313c}code{background:#1c2029}blockquote{color:#aab}}`;
+function scriptSafe(s) { return String(s).replace(/<\/script/gi, "<\\/script") }
+function csvRows(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  const s = String(text || "");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) { if (c === '"' && s[i + 1] === '"') { cell += '"'; i++ } else if (c === '"') q = false; else cell += c; continue }
+    if (c === '"') q = true; else if (c === ",") { row.push(cell); cell = "" }
+    else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = "" } else if (c !== "\r") cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  return rows;
+}
+function artifactSrcdoc(kind, content, name) {
+  const c = String(content || "");
+  const head = `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(name || "Artifact")}</title>${FRAME_SHIM}`;
+  switch (kind) {
+    case "html": {
+      if (/<head[\s>]/i.test(c)) return c.replace(/<head([^>]*)>/i, (m) => m + FRAME_SHIM);
+      if (/<html[\s>]/i.test(c)) return c.replace(/<html([^>]*)>/i, (m) => m + "<head>" + FRAME_SHIM + "</head>");
+      return `<!doctype html><html><head>${head}</head><body>${c}</body></html>`;
+    }
+    case "svg": return `<!doctype html><html><head>${head}<style>html,body{margin:0;height:100%;background:#fff}body{display:grid;place-items:center}svg{max-width:100%;max-height:100vh}</style></head><body>${c}</body></html>`;
+    case "markdown": return `<!doctype html><html><head>${head}<style>${DOC_CSS}</style></head><body><article>${md(c)}</article></body></html>`;
+    case "mermaid": return `<!doctype html><html><head>${head}<style>body{margin:0;padding:24px;background:#0f1320;color:#e6e9ef;font:14px system-ui}.err{color:#f87171;white-space:pre-wrap}</style></head><body><pre class="mermaid">${esc(c)}</pre><script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:false,theme:"dark",securityLevel:"strict"});try{await mermaid.run()}catch(e){document.body.insertAdjacentHTML("beforeend","<pre class=err>"+String(e.message||e).replace(/[<&]/g,"")+"</pre>")}<\/script></body></html>`;
+    case "react": return `<!doctype html><html><head>${head}<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.4/babel.min.js"><\/script><script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"><\/script><style>body{margin:0;font-family:system-ui,sans-serif}</style></head><body><div id="root"></div><script type="text/plain" id="__src">${scriptSafe(c)}<\/script><script>(function(){function fail(e){document.body.innerHTML='<pre style="color:#b91c1c;background:#fff1f2;white-space:pre-wrap;padding:16px;margin:0;font:13px ui-monospace,Menlo,monospace">'+String(e&&e.message||e).replace(/[<&]/g,function(x){return x=="<"?"&lt;":"&amp;"})+'</pre>';try{parent.postMessage({__swarmArtifact:1,type:"error",message:String(e&&e.message||e).slice(0,600)},"*")}catch(_){}}try{if(!window.React||!window.Babel)throw new Error("Could not load React/Babel from cdn.jsdelivr.net — the React preview needs network access.");var code=document.getElementById("__src").textContent;var dropped=(code.match(/^\\s*import\\s.+$/gm)||[]).filter(function(l){return !/from\\s+['"]react(-dom)?(\\/client)?['"]/.test(l)});code=code.replace(/^\\s*import\\s.+$/gm,"");code=code.replace(/export\\s+default\\s+function\\s+([A-Za-z_$][\\w$]*)/,"window.__APP__=function $1").replace(/export\\s+default\\s+class\\s+([A-Za-z_$][\\w$]*)/,"window.__APP__=class $1").replace(/export\\s+default\\s+/,"window.__APP__=").replace(/^\\s*export\\s+(?=(const|let|var|function|class)\\b)/gm,"");var pre="var {useState,useEffect,useRef,useMemo,useCallback,useReducer,useContext,createContext,Fragment,useLayoutEffect,useId,memo,forwardRef}=React;\\n";var post="\\n;try{window.__APP__=window.__APP__||(typeof App!=='undefined'?App:undefined)}catch(_){}";var out=Babel.transform(pre+code+post,{presets:[["react",{runtime:"classic"}],["typescript",{isTSX:true,allExtensions:true}]],filename:"artifact.tsx"}).code;(0,eval)(out);if(!window.__APP__)throw new Error("No component found. Export one with \\"export default function App() { … }\\".");ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(window.__APP__));if(dropped.length)console.warn("Imports not available in the preview:",dropped)}catch(e){fail(e)}})();<\/script></body></html>`;
+    case "json": {
+      let pretty = c; try { pretty = JSON.stringify(JSON.parse(c), null, 2) } catch {}
+      return `<!doctype html><html><head>${head}<style>body{margin:0;background:#0f1320;color:#dbe3f0}pre{margin:0;padding:18px;font:12.5px/1.55 ui-monospace,Menlo,monospace;white-space:pre-wrap}</style></head><body><pre>${esc(pretty)}</pre></body></html>`;
+    }
+    case "csv": {
+      const rows = csvRows(c).slice(0, 1000);
+      const [h, ...body] = rows;
+      return `<!doctype html><html><head>${head}<style>${DOC_CSS}body{background:#fff}table{font-size:13px}td,th{white-space:nowrap}</style></head><body><article style="max-width:none"><table><thead><tr>${(h || []).map(x => `<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${body.map(r => `<tr>${r.map(x => `<td>${esc(x)}</td>`).join("")}</tr>`).join("")}</tbody></table></article></body></html>`;
+    }
+    default: return `<!doctype html><html><head>${head}<style>body{margin:0;background:#0f1320;color:#dbe3f0}pre{margin:0;padding:18px;font:12.5px/1.55 ui-monospace,Menlo,monospace;white-space:pre-wrap}</style></head><body><pre>${esc(c)}</pre></body></html>`;
+  }
+}
+
+/* ---- the dock itself ---- */
+function dockMount() {
+  if (LIVE.dom) return LIVE.dom;
+  const root = document.createElement("aside");
+  root.id = "artifactDock"; root.className = "dock"; root.hidden = true;
+  root.setAttribute("aria-label", "Artifact");
+  root.innerHTML = `
+    <div class="dock-grip" title="Drag to resize"></div>
+    <header class="dock-head">
+      <div class="dock-tabs" data-role="tabs"></div>
+      <div class="dock-tools">
+        <div class="seg"><button data-dock="view-preview">Preview</button><button data-dock="view-code">Code</button></div>
+        <select data-role="versions" title="Version"></select>
+        <button class="btn tiny" data-dock="copy" title="Copy source">Copy</button>
+        <button class="btn tiny" data-dock="download" title="Download">⤓</button>
+        <button class="btn tiny" data-dock="reload" title="Restart the preview">↻</button>
+        <button class="btn tiny" data-dock="full" title="Full screen">⤢</button>
+        <button class="btn tiny" data-dock="close" title="Close">✕</button>
+      </div>
+    </header>
+    <div class="dock-status" data-role="status"></div>
+    <div class="dock-error" data-role="error" hidden></div>
+    <div class="dock-body">
+      <iframe class="dock-frame" data-role="frame" sandbox="${SANDBOX}" title="Artifact preview"></iframe>
+      <pre class="dock-code" data-role="code"><code></code></pre>
+      <div class="dock-empty" data-role="empty">Nothing here yet. Ask for an app, a game, a page, a diagram or a document and it appears here as it is written.</div>
+    </div>`;
+  document.body.appendChild(root);
+  const pill = document.createElement("button");
+  pill.id = "dockPill"; pill.className = "dock-pill"; pill.hidden = true;
+  pill.addEventListener("click", () => dockOpen(true));
+  document.body.appendChild(pill);
+  const q = r => root.querySelector(`[data-role="${r}"]`);
+  LIVE.dom = { root, pill, tabs: q("tabs"), versions: q("versions"), status: q("status"), error: q("error"), frame: q("frame"), code: q("code"), empty: q("empty") };
+
+  root.addEventListener("click", e => {
+    const b = e.target.closest("[data-dock],[data-dock-pick]");
+    if (!b) return;
+    if (b.dataset.dockPick) { LIVE.active = b.dataset.dockPick; LIVE.version = null; LIVE.follow = false; LIVE.pickedAt = Date.now(); LIVE.lastSrc = ""; LIVE.error = null; return dockSchedule(true) }
+    dockAction(b.dataset.dock);
+  });
+  LIVE.dom.versions.addEventListener("change", e => { const v = e.target.value; LIVE.version = v === "latest" ? null : Number(v); LIVE.lastSrc = ""; dockSchedule(true) });
+  // Resize by dragging the left edge; the width is remembered per browser.
+  const grip = root.querySelector(".dock-grip");
+  grip.addEventListener("pointerdown", e => {
+    e.preventDefault(); grip.setPointerCapture(e.pointerId);
+    document.body.classList.add("dock-resizing");
+    const move = ev => { const w = clamp(window.innerWidth - ev.clientX, 320, window.innerWidth - 360); document.documentElement.style.setProperty("--dock-w", w + "px") };
+    const up = () => { grip.removeEventListener("pointermove", move); document.body.classList.remove("dock-resizing"); LS.set("swarmos.dockW", getComputedStyle(document.documentElement).getPropertyValue("--dock-w").trim()) };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up, { once: true });
+  });
+  const w = LS.get("swarmos.dockW", ""); if (w) document.documentElement.style.setProperty("--dock-w", w);
+  // Runtime errors reported by the sandboxed preview.
+  window.addEventListener("message", e => {
+    if (!e.data || e.data.__swarmArtifact !== 1 || e.source !== LIVE.dom.frame.contentWindow) return;
+    if (e.data.type === "error") { LIVE.error = e.data.message; dockSchedule(true) }
+  });
+  // Artifact cards in chat, and "open in dock" buttons anywhere.
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-dock-open]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    LIVE.active = b.dataset.dockOpen; LIVE.version = null; LIVE.follow = false; LIVE.pickedAt = Date.now(); LIVE.lastSrc = "";
+    dockOpen(true);
+  }, true);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && LIVE.full) { LIVE.full = false; dockSchedule(true) } });
+  return LIVE.dom;
+}
+function dockOpen(user) {
+  dockMount();
+  LIVE.open = true;
+  if (user && !LIVE.active) LIVE.follow = true;
+  dockSchedule(true);
+}
+function dockClose() { LIVE.open = false; LIVE.full = false; dockSchedule(true) }
+async function dockAction(a) {
+  const { e, content } = dockCurrent();
+  switch (a) {
+    case "close": return dockClose();
+    case "view-preview": LIVE.view = "preview"; LIVE.lastSrc = ""; return dockSchedule(true);
+    case "view-code": LIVE.view = "code"; return dockSchedule(true);
+    case "full": LIVE.full = !LIVE.full; return dockSchedule(true);
+    case "reload": LIVE.lastSrc = ""; LIVE.error = null; return dockSchedule(true);
+    case "copy": return e ? copyText(content) : null;
+    case "download": return e ? download(e.name, content, "text/plain") : null;
+    case "fix": {
+      if (!e || !LIVE.error || RUN.active) return;
+      const err = LIVE.error; LIVE.error = null; dockSchedule(true);
+      const ta = $("#chatInput");
+      const text = `The artifact "${e.name}" throws this error in the preview:\n\n${err}\n\nFix it and re-emit the complete file with the same title so it becomes the next version.`;
+      if (ta) ta.value = text; state.draft = text;
+      return send();
+    }
+  }
+}
+function dockSchedule(now) {
+  if (!LIVE.dom && !LIVE.items.size) return;
+  if (now) { cancelAnimationFrame(LIVE.raf); LIVE.raf = 0; return dockUpdate(true) }
+  if (LIVE.raf) return;
+  LIVE.raf = requestAnimationFrame(() => { LIVE.raf = 0; dockUpdate(false) });
+}
+function dockUpdate(force) {
+  const d = dockMount();
+  const { list, e, content, version } = dockCurrent();
+  const writing = list.filter(x => x.status === "writing");
+  const narrow = window.innerWidth < 900;
+  document.body.classList.toggle("dock-open", LIVE.open && !narrow);
+  d.root.hidden = !LIVE.open;
+  d.root.classList.toggle("full", LIVE.full || (LIVE.open && narrow));
+  d.pill.hidden = LIVE.open || !list.length;
+  if (!d.pill.hidden) d.pill.innerHTML = writing.length ? `<span class="dot busy"></span> Writing ${esc(writing[0].name)}` : `◆ Artifacts · ${list.length}`;
+  if (!LIVE.open) return;
+  if (e) LIVE.active = e.name;
+
+  // Tabs, one per artifact in this conversation.
+  const tabsHtml = list.slice(0, 30).map(x => `<button class="dock-tab ${x.name === LIVE.active ? "active" : ""}" data-dock-pick="${esc(x.name)}" title="${esc(x.name)}${x.source ? " · " + esc(x.source) : ""}"><span class="dot ${x.status === "writing" ? "busy" : "ok"}"></span>${esc(x.name)}</button>`).join("");
+  if (d.tabs.innerHTML !== tabsHtml) d.tabs.innerHTML = tabsHtml;
+  d.empty.hidden = !!e;
+  const previewable = e && PREVIEW_KINDS.has(e.kind);
+  const view = !e ? "none" : previewable ? LIVE.view : "code";
+  d.root.querySelectorAll('[data-dock^="view-"]').forEach(b => { b.classList.toggle("active", b.dataset.dock === "view-" + view); b.disabled = !previewable && b.dataset.dock === "view-preview" });
+  d.frame.hidden = view !== "preview";
+  d.code.hidden = view !== "code";
+
+  // Versions.
+  const hist = e?.artifact ? [...(e.artifact.history || []).map(h => h.version), e.artifact.version].sort((a, b) => b - a) : [];
+  const vHtml = e?.status === "writing" ? `<option>writing…</option>` : hist.length ? hist.map((v, i) => `<option value="${i === 0 ? "latest" : v}" ${(LIVE.version == null ? i === 0 : LIVE.version === v) ? "selected" : ""}>v${v}${i === 0 ? " · latest" : ""}</option>`).join("") : `<option>v1</option>`;
+  if (d.versions.innerHTML !== vHtml) d.versions.innerHTML = vHtml;
+  d.versions.disabled = hist.length < 2;
+
+  if (!e) { d.status.textContent = ""; return }
+  const lines = content ? content.split("\n").length : 0;
+  d.status.innerHTML = `<b>${esc(KIND_LABEL[e.kind] || "Code")}</b> · ${fmtNum(lines)} lines · ${(content.length / 1024).toFixed(1)} KB${e.source ? " · " + esc(String(e.source).replace(/^agent:/, "agent · ")) : ""}${e.status === "writing" ? ` · <span class="writing">writing<span class="typing"><i></i><i></i><i></i></span></span>` : version ? " · v" + version : ""}`;
+  d.error.hidden = !LIVE.error;
+  if (LIVE.error) d.error.innerHTML = `<span>⚠ ${esc(LIVE.error)}</span><button class="btn tiny" data-dock="fix" ${RUN.active ? "disabled" : ""}>Ask the swarm to fix it</button>`;
+
+  const now = Date.now();
+  if (view === "code" && (force || now - LIVE.lastCodeAt > 90)) {
+    const codeEl = d.code.firstElementChild;
+    if (codeEl.textContent !== content) {
+      const atBottom = d.code.scrollHeight - d.code.scrollTop - d.code.clientHeight < 60;
+      codeEl.textContent = content;
+      if (e.status === "writing" && atBottom) d.code.scrollTop = d.code.scrollHeight;
+    }
+    LIVE.lastCodeAt = now;
+  }
+  if (view === "preview") {
+    const src = artifactSrcdoc(e.kind, content, e.name);
+    // While writing, repaint at most every 700 ms; when done, paint once, exactly.
+    const due = force || e.status !== "writing" || now - LIVE.lastSrcAt > 700;
+    if (src !== LIVE.lastSrc && due && !(LIVE.paused && e.status === "writing")) {
+      LIVE.lastSrc = src; LIVE.lastSrcAt = now;
+      if (e.status !== "writing") LIVE.error = null;
+      d.frame.srcdoc = src;
+    } else if (src !== LIVE.lastSrc) {
+      setTimeout(() => dockSchedule(), 720);
+    }
+  }
+}
+
+/* Chat messages show a card where an artifact block was, not a wall of code. */
+function mdWithArtifacts(text, streaming) {
+  const blocks = artifactBlocks(text, currentSession().title);
+  if (!blocks.length || state.settings.artifactCards === false) return md(text);
+  let out = "", at = 0;
+  const cards = [];
+  blocks.forEach((b, i) => {
+    out += text.slice(at, b.from) + `\n\n@@ARTIFACT${i}@@\n\n`;
+    at = b.to;
+    const writing = !b.closed && streaming;
+    const lines = b.code.split("\n").length;
+    cards.push(`<button class="art-card ${writing ? "writing" : ""}" data-dock-open="${esc(b.name)}"><span class="art-ico">${b.kind === "html" ? "▣" : b.kind === "react" ? "⚛" : b.kind === "markdown" ? "¶" : b.kind === "mermaid" ? "⧉" : b.kind === "svg" ? "◈" : "{ }"}</span><span class="art-txt"><b>${esc(b.name)}</b><span>${esc(KIND_LABEL[b.kind] || "Code")} · ${lines} lines${writing ? " · writing…" : ""}</span></span><span class="art-go">${PREVIEW_KINDS.has(b.kind) ? "Open ▸" : "View ▸"}</span></button>`);
+  });
+  out += text.slice(at);
+  let html = md(out);
+  cards.forEach((c, i) => { html = html.replace(new RegExp(`(<p>)?\\s*@@ARTIFACT${i}@@\\s*(</p>)?`), c) });
+  return html;
 }
 
 /* -------------------------------------------------------------- workspace */
@@ -6053,6 +6708,423 @@ async function runArena(prompt, models) {
   render();
 }
 
+/* ============================================================================
+   CHAT FEATURES — the everyday conveniences of Open WebUI, built into the
+   harness: a chats drawer (search, pin, rename, archive, export, import,
+   temporary chats), message actions (edit & resend, regenerate with versions,
+   continue, read aloud, rate, delete), dictation, follow-up suggestions, math
+   rendering, a sandboxed code runner (JavaScript and Python via Pyodide),
+   model presets, and a slash-command prompt library.
+   ========================================================================== */
+
+/* ---- message versions: regenerate keeps every previous answer ---- */
+function msgView(m) {
+  const v = m.versions || [];
+  const i = Math.min(m.versionIndex ?? v.length, v.length);
+  if (i < v.length) return { ...v[i], index: i, total: v.length + 1, old: true };
+  return { content: m.content, model: m.model, artifactIds: m.artifactIds, swarmId: m.swarmId, dod: m.dod, dodReport: m.dodReport, index: v.length, total: v.length + 1, old: false };
+}
+function findMsg(id) {
+  const s = currentSession();
+  const i = s.messages.findIndex(m => m.id === id);
+  return { s, i, m: s.messages[i] };
+}
+async function regenerateMessage(id) {
+  if (RUN.active) return toast("Wait for the current run to finish.");
+  const { s, i, m } = findMsg(id);
+  if (!m || m.role !== "assistant" || i !== s.messages.length - 1) return toast("Only the latest reply can be regenerated.");
+  const u = s.messages[i - 1];
+  if (!u || u.role !== "user") return;
+  const prior = [...(m.versions || []), { content: m.content, model: m.model, created: m.created, artifactIds: m.artifactIds, swarmId: m.swarmId, dod: m.dod, dodReport: m.dodReport }];
+  s.messages.splice(i - 1, 2);
+  await runOrchestrator(u.content, []);
+  const nm = s.messages[s.messages.length - 1];
+  if (nm && nm.role === "assistant") { nm.versions = prior; nm.versionIndex = prior.length; await saveSession(s) }
+  render();
+}
+async function editAndResend(id, text) {
+  if (RUN.active) return toast("Wait for the current run to finish.");
+  const { s, i, m } = findMsg(id);
+  if (!m || m.role !== "user") return;
+  text = String(text || "").trim();
+  if (!text) return toast("The message is empty.");
+  s.messages.splice(i);                    // everything from this message on is replaced
+  state.editingMsgId = null;
+  await saveSession(s);
+  await runOrchestrator(text, []);
+}
+/* Plain text for speech and for plain-text export. */
+function plainText(mdText) {
+  return String(mdText || "")
+    .replace(/```[\s\S]*?(```|$)/g, " (code omitted) ")
+    .replace(/`([^`]*)`/g, "$1").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "").replace(/[*_~>|]/g, "").replace(/\n{2,}/g, "\n").trim();
+}
+let SPEAKING = null;
+function readAloud(id) {
+  if (!("speechSynthesis" in window)) return toast("Read aloud is not supported in this browser.");
+  if (SPEAKING === id) { speechSynthesis.cancel(); SPEAKING = null; return render() }
+  speechSynthesis.cancel();
+  const { m } = findMsg(id); if (!m) return;
+  // Long utterances stall in some engines; speak sentence-sized chunks in order.
+  const chunks = plainText(msgView(m).content).match(/[^.!?\n]{1,220}[.!?\n]*|\S+/g) || [];
+  SPEAKING = id;
+  chunks.forEach((c, k) => {
+    const u = new SpeechSynthesisUtterance(c.trim());
+    u.lang = navigator.language || "en-US";
+    if (state.settings.ttsVoice) { const v = speechSynthesis.getVoices().find(x => x.name === state.settings.ttsVoice); if (v) u.voice = v }
+    u.rate = Number(state.settings.ttsRate) || 1;
+    if (k === chunks.length - 1) u.onend = () => { if (SPEAKING === id) { SPEAKING = null; render() } };
+    speechSynthesis.speak(u);
+  });
+  render();
+}
+
+/* ---- dictation ---- */
+let REC = null;
+function toggleDictation() {
+  if (REC) { REC.stop(); return }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (NATIVE) return toast("In the Mac app, use macOS Dictation: press the Dictation key (or Fn twice) with the cursor in the message box.");
+  if (!SR) return toast("Voice input is not supported in this browser. Chrome, Edge and Safari support it.");
+  const ta = $("#chatInput"); if (!ta) return;
+  const base = ta.value.replace(/\s+$/, "");
+  REC = new SR();
+  REC.lang = navigator.language || "en-US"; REC.interimResults = true; REC.continuous = true;
+  REC.onresult = e => {
+    let said = "";
+    for (let k = 0; k < e.results.length; k++) said += e.results[k][0].transcript;
+    const el = $("#chatInput"); if (!el) return;
+    el.value = (base ? base + " " : "") + said.trim(); state.draft = el.value;
+  };
+  REC.onerror = e => toast(e.error === "not-allowed" ? "Microphone permission was denied." : e.error === "network" ? "Speech recognition could not reach its service." : e.error === "no-speech" ? "Didn't hear anything." : "Voice input stopped: " + e.error);
+  REC.onend = () => { REC = null; render() };
+  try { REC.start(); toast("Listening… click the mic again to stop.") } catch (e) { REC = null; toast("Could not start voice input: " + e.message) }
+  render();
+}
+
+/* ---- follow-up suggestions ---- */
+async function suggestFollowUps(msg, session) {
+  if (!state.settings.followUps || !anyProviderReady() || !msg?.content) return;
+  try {
+    const r = await callModel([
+      { role: "system", content: "You suggest what a user might sensibly ask next. Reply with ONLY a JSON array of 3 short questions (each under 12 words), written as the user would type them. No prose." },
+      { role: "user", content: "Conversation so far (latest last):\n\n" + session.messages.slice(-4).map(m => (m.role === "user" ? "USER: " : "ASSISTANT: ") + plainText(m.content).slice(0, 1500)).join("\n\n") }
+    ], { ref: state.settings.defaultAgentModel, maxTokens: 160, temperature: .5, stream: false, allowFallback: false });
+    const arr = JSON.parse((String(r.content || "").match(/\[[\s\S]*\]/) || ["[]"])[0]);
+    msg.followUps = arr.filter(x => typeof x === "string" && x.trim()).slice(0, 3).map(x => x.trim().slice(0, 140));
+    if (msg.followUps.length) { await saveSession(session); scheduleRender() }
+  } catch { /* suggestions are a nicety; never an error */ }
+}
+
+/* ---- math: $…$, $$…$$, \(…\), \[…\] rendered with KaTeX, loaded on first use ---- */
+const KATEX = { state: "idle" };
+function loadKatex() {
+  if (KATEX.state !== "idle") return;
+  KATEX.state = "loading";
+  const css = document.createElement("link");
+  css.rel = "stylesheet"; css.href = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
+  document.head.appendChild(css);
+  const js = document.createElement("script");
+  js.src = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js";
+  js.onload = () => { KATEX.state = "ready"; scheduleRender(0) };
+  js.onerror = () => { KATEX.state = "failed" };
+  document.head.appendChild(js);
+}
+/* Pull math out before markdown runs (so "_" and "*" inside it are not read as
+   emphasis), leaving placeholders; code spans and fences are never touched. */
+function extractMath(text) {
+  const spans = [];
+  const put = (tex, display) => { spans.push({ tex, display }); return "@@MATH" + (spans.length - 1) + "@@" };
+  const parts = String(text || "").split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/);
+  for (let k = 0; k < parts.length; k += 2) {
+    parts[k] = parts[k]
+      .replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => put(t, true))
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_, t) => put(t, true))
+      .replace(/\\\(([\s\S]+?)\\\)/g, (_, t) => put(t, false))
+      // $x$ only when it cannot be money: no space inside the delimiters, no digit right after.
+      .replace(/(^|[^\\$\w])\$(?![\s$])([^$\n]{1,300}?)(?<![\s\\])\$(?![\w$])/g, (m, pre, t) => /[\\^_=+{}]|[a-zA-Z]/.test(t) ? pre + put(t, false) : m);
+  }
+  return { text: parts.join(""), spans };
+}
+function renderMath(html, spans) {
+  if (!spans.length) return html;
+  if (KATEX.state === "idle") loadKatex();
+  return html.replace(/@@MATH(\d+)@@/g, (_, n) => {
+    const s = spans[Number(n)]; if (!s) return "";
+    if (KATEX.state === "ready" && window.katex) {
+      try { return window.katex.renderToString(s.tex, { displayMode: s.display, throwOnError: false, output: "html" }) } catch {}
+    }
+    return `<code class="math-raw">${esc(s.display ? "$$" + s.tex + "$$" : "$" + s.tex + "$")}</code>`;
+  });
+}
+/* The assistant's markdown: math + artifact cards + ordinary markdown. */
+function renderRich(text, streaming) {
+  const { text: t, spans } = extractMath(text);
+  return renderMath(mdWithArtifacts(t, streaming), spans);
+}
+
+/* ---- code runner: JavaScript and Python, each in a sandbox with no access to this app ---- */
+const RUNNER = { out: new Map(), py: null, pyReady: null, seq: 0, waits: new Map() };
+function codeHash(s) { let h = 5381; s = String(s); for (let k = 0; k < s.length; k++) h = ((h << 5) + h + s.charCodeAt(k)) | 0; return "r" + (h >>> 0).toString(36) }
+function unescHtml(s) { const t = document.createElement("textarea"); t.innerHTML = s; return t.value }
+function runnerFrame(src) {
+  const f = document.createElement("iframe");
+  f.setAttribute("sandbox", "allow-scripts"); f.style.display = "none"; f.srcdoc = src;
+  document.body.appendChild(f);
+  return f;
+}
+window.addEventListener("message", e => {
+  const d = e.data;
+  if (!d || d.__swarmRun !== 1) return;
+  const w = RUNNER.waits.get(d.id);
+  if (!w || e.source !== w.frame.contentWindow) return;
+  if (d.type === "out") w.lines.push({ stream: d.stream || "stdout", text: String(d.text) });
+  if (d.type === "status") w.status = d.text;
+  if (d.type === "done") { w.done(d.error || null) }
+  runnerPaint(w.key);
+});
+function runnerPaint(key) {
+  const r = RUNNER.out.get(key);
+  document.querySelectorAll(`[data-run-out="${key}"]`).forEach(el => {
+    el.hidden = !r;
+    if (!r) return;
+    el.innerHTML = `<div class="run-head"><span>${esc(r.lang)} · ${r.running ? esc(r.status || "running…") : r.error ? "failed" : "finished"}${r.ms ? " · " + fmtMs(r.ms) : ""}</span>${r.running ? "" : `<button class="btn tiny" data-run-clear="${key}">Clear</button>`}</div><pre>${r.lines.map(l => `<span class="${l.stream === "stderr" ? "err" : ""}">${esc(l.text)}</span>`).join("\n") || (r.running ? "" : "(no output)")}${r.error ? `\n<span class="err">${esc(r.error)}</span>` : ""}</pre>`;
+  });
+}
+const RUN_JS_SRC = `<!doctype html><script>addEventListener("message",async e=>{const d=e.data;if(!d||d.__swarmRun!==1||d.type!=="run")return;const post=(o)=>parent.postMessage(Object.assign({__swarmRun:1,id:d.id},o),"*");const fmt=a=>a.map(x=>{if(typeof x==="string")return x;try{return JSON.stringify(x,null,2)}catch(_){return String(x)}}).join(" ");["log","info","warn","error","debug"].forEach(k=>{console[k]=(...a)=>post({type:"out",stream:k==="error"||k==="warn"?"stderr":"stdout",text:fmt(a)})});try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const r=await new AsyncFunction(d.code)();if(r!==undefined)post({type:"out",text:"→ "+fmt([r])});post({type:"done"})}catch(err){post({type:"done",error:String(err&&err.stack||err)})}});parent.postMessage({__swarmRun:1,type:"ready"},"*")<\/script>`;
+const RUN_PY_SRC = `<!doctype html><script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"><\/script><script>let py=null;async function boot(){if(typeof loadPyodide==="undefined")throw new Error("Could not load Python from cdn.jsdelivr.net. The Python runner needs network access to download Pyodide.");py=await loadPyodide();return py}let booting=null;addEventListener("message",async e=>{const d=e.data;if(!d||d.__swarmRun!==1||d.type!=="run")return;const post=(o)=>parent.postMessage(Object.assign({__swarmRun:1,id:d.id},o),"*");try{if(!py){post({type:"status",text:"loading Python (first run downloads about 10 MB)…"});booting=booting||boot();await booting}post({type:"status",text:"running…"});py.setStdout({batched:t=>post({type:"out",text:t})});py.setStderr({batched:t=>post({type:"out",stream:"stderr",text:t})});await py.loadPackagesFromImports(d.code);const r=await py.runPythonAsync(d.code);if(r!==undefined&&r!==null)post({type:"out",text:"→ "+String(r)});post({type:"done"})}catch(err){post({type:"done",error:String(err&&err.message||err)})}});<\/script>`;
+async function runCode(key, lang, code) {
+  const py = /^(py|python)$/i.test(lang);
+  const prev = RUNNER.out.get(key);
+  if (prev?.running) return;
+  const rec = { key, lang: py ? "Python" : "JavaScript", lines: [], running: true, status: "", started: performance.now() };
+  RUNNER.out.set(key, rec);
+  runnerPaint(key);
+  const id = "run" + (++RUNNER.seq);
+  let frame;
+  if (py) {
+    if (!RUNNER.py) RUNNER.py = runnerFrame(RUN_PY_SRC);     // Python stays loaded between runs
+    frame = RUNNER.py;
+  } else frame = runnerFrame(RUN_JS_SRC);
+  const w = { key, frame, lines: rec.lines, status: "", done: null };
+  const finished = new Promise(res => { w.done = err => res(err) });
+  Object.defineProperty(w, "status", { set(v) { rec.status = v }, get() { return rec.status } });
+  RUNNER.waits.set(id, w);
+  const start = () => frame.contentWindow.postMessage({ __swarmRun: 1, type: "run", id, code }, "*");
+  if (frame.dataset.loaded) start(); else frame.addEventListener("load", () => { frame.dataset.loaded = "1"; start() }, { once: true });
+  const limit = py ? 120000 : 15000;
+  const err = await Promise.race([finished, sleep(limit).then(() => "Timed out after " + limit / 1000 + " s.")]);
+  RUNNER.waits.delete(id);
+  if (!py) frame.remove();
+  else if (err && /^Timed out/.test(err)) { frame.remove(); RUNNER.py = null }   // a runaway loop: start fresh next time
+  Object.assign(rec, { running: false, error: err || null, ms: performance.now() - rec.started });
+  runnerPaint(key);
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-run-code],[data-run-clear]");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  if (b.dataset.runClear) { RUNNER.out.delete(b.dataset.runClear); return runnerPaint(b.dataset.runClear) }
+  const pre = document.querySelector(`pre[data-code="${b.dataset.codeId}"]`);
+  if (pre) runCode(b.dataset.runCode, b.dataset.lang, pre.innerText);
+}, true);
+
+/* ---- chats drawer ---- */
+function sessionGroups(query) {
+  const q = String(query || "").toLowerCase().trim();
+  const list = state.sessions.filter(s => {
+    if (!q) return true;
+    return (s.title || "").toLowerCase().includes(q) || s.messages.some(m => String(m.content || "").toLowerCase().includes(q));
+  });
+  const day = 86400000, today = new Date(); today.setHours(0, 0, 0, 0);
+  const groups = [["Pinned", []], ["Today", []], ["Yesterday", []], ["Previous 7 days", []], ["Previous 30 days", []], ["Older", []], ["Archived", []]];
+  const g = Object.fromEntries(groups);
+  for (const s of list.sort((a, b) => new Date(b.updated || 0) - new Date(a.updated || 0))) {
+    if (s.archived) { g.Archived.push(s); continue }
+    if (s.pinned) { g.Pinned.push(s); continue }
+    const t = new Date(s.updated || s.created || 0).getTime();
+    const bucket = t >= today.getTime() ? "Today" : t >= today.getTime() - day ? "Yesterday" : t >= today.getTime() - 7 * day ? "Previous 7 days" : t >= today.getTime() - 30 * day ? "Previous 30 days" : "Older";
+    g[bucket].push(s);
+  }
+  return groups.filter(([, v]) => v.length);
+}
+function renderChatsDrawer() {
+  if (!state.chatsOpen) return "";
+  const cur = state.currentSessionId;
+  const row = s => state.renamingId === s.id
+    ? `<div class="chat-row editing"><input id="renameInput" value="${esc(s.title)}" data-rename="${s.id}"><button class="btn tiny" data-action="chat-rename-save" data-sid="${s.id}">Save</button></div>`
+    : `<div class="chat-row ${s.id === cur ? "active" : ""}">
+        <button class="chat-open" data-open-session="${s.id}" title="${esc(s.title)}">${s.temporary ? "⏱ " : ""}${esc(s.title || "Untitled")}</button>
+        <span class="chat-acts">
+          <button title="Rename" data-action="chat-rename" data-sid="${s.id}">✎</button>
+          <button title="${s.pinned ? "Unpin" : "Pin"}" data-action="chat-pin" data-sid="${s.id}">${s.pinned ? "★" : "☆"}</button>
+          <button title="Export" data-action="chat-export" data-sid="${s.id}">⤓</button>
+          <button title="${s.archived ? "Unarchive" : "Archive"}" data-action="chat-archive" data-sid="${s.id}">${s.archived ? "⇧" : "🗄"}</button>
+          <button title="Delete" data-action="chat-delete" data-sid="${s.id}">🗑</button>
+        </span></div>${state.exportingId === s.id ? `<div class="chat-export">Export as <button data-action="chat-export-fmt" data-sid="${s.id}" data-fmt="md">Markdown</button><button data-action="chat-export-fmt" data-sid="${s.id}" data-fmt="json">JSON</button><button data-action="chat-export-fmt" data-sid="${s.id}" data-fmt="html">Web page (share)</button></div>` : ""}`;
+  const groups = sessionGroups(state.chatQuery);
+  return `<div class="chats-scrim" data-action="chats-close"></div>
+  <aside class="chats-drawer" aria-label="Chats">
+    <div class="chats-head"><b>Chats</b><button class="btn tiny" data-action="chats-close" title="Close">✕</button></div>
+    <div class="row" style="gap:6px;padding:0 12px 10px">
+      <button class="btn small primary" data-action="new-session" style="flex:1">＋ New chat</button>
+      <button class="btn small" data-action="new-temp-session" title="Not saved; gone when you leave it">⏱ Temporary</button>
+    </div>
+    <div style="padding:0 12px 10px"><input id="chatSearch" placeholder="Search chats and messages…" value="${esc(state.chatQuery || "")}" autocomplete="off"></div>
+    <div class="chats-list">
+      ${groups.length ? groups.map(([name, list]) => name === "Archived"
+        ? `<details class="chat-group"><summary>${name} (${list.length})</summary>${list.map(row).join("")}</details>`
+        : `<div class="chat-group"><div class="chat-group-h">${name}</div>${list.map(row).join("")}</div>`).join("")
+        : `<div class="empty">${state.chatQuery ? "No chat matches." : "No chats yet."}</div>`}
+    </div>
+    <div class="chats-foot">
+      <label class="btn tiny" style="margin:0">Import chat<input id="importChat" type="file" accept=".json,application/json" hidden></label>
+      <button class="btn tiny" data-action="chat-export-all">Export all</button>
+    </div>
+  </aside>`;
+}
+function chatMarkdown(s) {
+  return `# ${s.title}\n\n_${new Date(s.created).toLocaleString()} · exported from ${APP}_\n\n` + s.messages.map(m =>
+    m.role === "user" ? `### You\n\n${m.content}` : `### ${APP} (${msgView(m).model || "assistant"})\n\n${msgView(m).content}`).join("\n\n---\n\n") + "\n";
+}
+/* A standalone, read-only page of the conversation: the "share" Open WebUI
+   offers, without a server — send the file, it opens anywhere. */
+function chatHtml(s) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(s.title)}</title><style>${DOC_CSS}.m{margin:22px 0;padding:14px 18px;border-radius:14px;border:1px solid #d9d6cf}.u{background:#f1eee7}.who{font:600 12px system-ui;text-transform:uppercase;letter-spacing:.08em;color:#8a857a;margin-bottom:6px}@media(prefers-color-scheme:dark){.m{border-color:#2c313c}.u{background:#1c2029}}</style></head><body><article><h1>${esc(s.title)}</h1><p style="color:#8a857a">${esc(new Date(s.created).toLocaleString())} · ${s.messages.length} messages · exported from ${APP}</p>${s.messages.map(m => `<div class="m ${m.role === "user" ? "u" : ""}"><div class="who">${m.role === "user" ? "You" : esc(APP + " · " + (msgView(m).model || ""))}</div>${md(m.role === "user" ? m.content : msgView(m).content)}</div>`).join("")}</article></body></html>`;
+}
+function exportChat(id, fmt) {
+  const s = state.sessions.find(x => x.id === id); if (!s) return;
+  const base = (slugify(s.title) || "chat") + "-" + s.id.slice(-6);
+  if (fmt === "json") return download(base + ".json", JSON.stringify({ format: "swarm-os-chat", version: 1, session: s }, null, 2), "application/json");
+  if (fmt === "html") return download(base + ".html", chatHtml(s), "text/html");
+  return download(base + ".md", chatMarkdown(s), "text/markdown");
+}
+async function importChatFile(file) {
+  try {
+    const j = JSON.parse(await file.text());
+    const src = j.session || j;
+    const msgs = Array.isArray(src.messages) ? src.messages : Array.isArray(src.chat?.messages) ? src.chat.messages : null;   // ours, or an Open WebUI export
+    if (!msgs) throw new Error("no messages in that file");
+    const s = {
+      id: uid("sess"), title: String(src.title || src.chat?.title || file.name.replace(/\.json$/i, "")).slice(0, 120),
+      created: ts(), updated: ts(),
+      messages: msgs.filter(m => m && (m.role === "user" || m.role === "assistant")).map(m => ({ id: uid("msg"), role: m.role, content: String(m.content ?? ""), created: m.created || m.timestamp && new Date(m.timestamp * 1000).toISOString() || ts(), model: m.model || "", artifactIds: [] }))
+    };
+    state.sessions.unshift(s); state.currentSessionId = s.id;
+    await saveSession(s); toast("Imported “" + s.title + "” · " + s.messages.length + " messages."); render();
+  } catch (e) { toast("Could not import: " + e.message) }
+}
+
+/* ---- model presets (Open WebUI "models"): a base model plus a system prompt ---- */
+function presetById(id) { return (state.settings.presets || []).find(p => p.id === id) || null }
+function applyPresetToMessages(messages, pr) {
+  const sys = String(pr.system || "").trim();
+  if (!sys) return messages;
+  const out = messages.slice();
+  if (out[0]?.role === "system") out[0] = { ...out[0], content: sys + "\n\n---\n\n" + out[0].content };
+  else out.unshift({ role: "system", content: sys });
+  return out;
+}
+
+/* ---- prompt library: type "/" in the message box ---- */
+const DEFAULT_PROMPTS = [
+  { id: "p_summarize", command: "summarize", title: "Summarize", content: "Summarize the following in 5 bullet points, then one sentence on what matters most:\n\n" },
+  { id: "p_explain", command: "explain", title: "Explain like I'm new", content: "Explain this clearly to someone new to the topic, with one concrete example:\n\n" },
+  { id: "p_game", command: "game", title: "Build a browser game", content: "Build a polished single-file HTML game: " },
+  { id: "p_app", command: "app", title: "Build a web app", content: "Build a complete single-file web app (HTML, CSS, JS inline) that " },
+  { id: "p_react", command: "react", title: "React component", content: "Build a React component (export default, Tailwind for styling) that " },
+  { id: "p_diagram", command: "diagram", title: "Diagram", content: "Draw a mermaid diagram of " },
+  { id: "p_doc", command: "doc", title: "Write a document", content: "Write a well-structured markdown document titled \"\" about " },
+  { id: "p_review", command: "review", title: "Code review", content: "Review this code for bugs, security issues and simplifications. Give patches:\n\n" },
+  { id: "p_today", command: "today", title: "Dated brief", content: "Today is {{CURRENT_DATE}}. Give me a brief on " }
+];
+function promptLib() { return state.settings.promptLib && state.settings.promptLib.length ? state.settings.promptLib : DEFAULT_PROMPTS }
+async function fillPromptVars(text) {
+  const now = new Date();
+  let out = String(text)
+    .replace(/\{\{CURRENT_DATE\}\}/g, now.toLocaleDateString())
+    .replace(/\{\{CURRENT_TIME\}\}/g, now.toLocaleTimeString())
+    .replace(/\{\{CURRENT_DATETIME\}\}/g, now.toLocaleString())
+    .replace(/\{\{CURRENT_WEEKDAY\}\}/g, now.toLocaleDateString(undefined, { weekday: "long" }))
+    .replace(/\{\{USER_LANGUAGE\}\}/g, navigator.language || "en");
+  if (out.includes("{{CLIPBOARD}}")) {
+    let clip = "";
+    try { clip = await navigator.clipboard.readText() } catch { toast("Clipboard not readable here — paste it in.") }
+    out = out.replace(/\{\{CLIPBOARD\}\}/g, clip);
+  }
+  return out;
+}
+const SLASH = { el: null, items: [], sel: 0 };
+function slashMount() {
+  if (SLASH.el) return SLASH.el;
+  SLASH.el = document.createElement("div");
+  SLASH.el.className = "slash-pop"; SLASH.el.hidden = true;
+  SLASH.el.addEventListener("mousedown", e => { const b = e.target.closest("[data-slash]"); if (b) { e.preventDefault(); slashPick(Number(b.dataset.slash)) } });
+  document.body.appendChild(SLASH.el);
+  return SLASH.el;
+}
+function slashUpdate() {
+  const ta = $("#chatInput"), el = slashMount();
+  const m = ta && ta.value.match(/^\/([\w-]*)$/);
+  if (!m) { el.hidden = true; return }
+  const q = m[1].toLowerCase();
+  const prompts = promptLib().filter(p => p.command.startsWith(q) || p.title.toLowerCase().includes(q)).map(p => ({ kind: "prompt", label: "/" + p.command, sub: p.title, p }));
+  const lanes = OPS.filter(o => o.key.startsWith(q) || o.title.toLowerCase().includes(q)).slice(0, 6).map(o => ({ kind: "ops", label: "/ops " + o.key, sub: o.title, o }));
+  SLASH.items = [...prompts, ...lanes].slice(0, 12);
+  SLASH.sel = Math.min(SLASH.sel, Math.max(0, SLASH.items.length - 1));
+  if (!SLASH.items.length) { el.hidden = true; return }
+  const r = ta.getBoundingClientRect();
+  el.style.left = Math.max(8, r.left) + "px"; el.style.bottom = (window.innerHeight - r.top + 8) + "px"; el.style.width = Math.min(520, r.width) + "px";
+  el.innerHTML = SLASH.items.map((it, k) => `<button data-slash="${k}" class="${k === SLASH.sel ? "sel" : ""}"><b>${esc(it.label)}</b><span>${esc(it.sub)}</span></button>`).join("");
+  el.hidden = false;
+}
+async function slashPick(k) {
+  const it = SLASH.items[k], ta = $("#chatInput");
+  if (!it || !ta) return;
+  SLASH.el.hidden = true;
+  ta.value = it.kind === "ops" ? "/ops " + it.o.key + " " : await fillPromptVars(it.p.content);
+  state.draft = ta.value; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.dispatchEvent(new Event("input", { bubbles: true }));
+}
+document.addEventListener("input", e => {
+  if (e.target?.id === "chatInput") { SLASH.sel = 0; slashUpdate() }
+  if (e.target?.id === "chatSearch") {
+    state.chatQuery = e.target.value; state._chatSearchCaret = e.target.selectionStart;
+    render();
+  }
+});
+document.addEventListener("keydown", e => {
+  if (!SLASH.el || SLASH.el.hidden || e.target?.id !== "chatInput") return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); e.stopImmediatePropagation(); SLASH.sel = (SLASH.sel + (e.key === "ArrowDown" ? 1 : -1) + SLASH.items.length) % SLASH.items.length; slashUpdate() }
+  else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); slashPick(SLASH.sel) }
+  else if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); SLASH.el.hidden = true }
+}, true);
+document.addEventListener("change", e => {
+  if (e.target?.id === "importChat" && e.target.files?.[0]) { importChatFile(e.target.files[0]); e.target.value = "" }
+});
+document.addEventListener("keydown", e => {
+  if (e.target?.id === "renameInput" && e.key === "Enter") { e.preventDefault(); doAction("chat-rename-save", e.target) }
+  if (e.target?.dataset?.editMsg && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); editAndResend(e.target.dataset.editMsg, e.target.value) }
+}, true);
+
+/* ---- your ratings, per model: a personal leaderboard ---- */
+function ratingBoard() {
+  const by = {};
+  for (const s of state.sessions) for (const m of s.messages) {
+    if (m.role !== "assistant" || !m.rating) continue;
+    const k = m.model || "unknown";
+    const r = (by[k] ||= { model: k, up: 0, down: 0 });
+    m.rating > 0 ? r.up++ : r.down++;
+  }
+  // Wilson lower bound: a model with 3/3 does not outrank one with 40/45.
+  return Object.values(by).map(r => {
+    const n = r.up + r.down, p = r.up / n, z = 1.96;
+    r.score = n ? (p + z * z / (2 * n) - z * Math.sqrt((p * (1 - p) + z * z / (4 * n)) / n)) / (1 + z * z / n) : 0;
+    return r;
+  }).sort((a, b) => b.score - a.score);
+}
+
 /* ------------------------------------------------------------- markdown
    Deliberately small. Fences first (so their contents are never touched by
    inline rules), then tables, lists, headings, and inline marks. Everything
@@ -6065,7 +7137,9 @@ function md(text) {
     // Ids must be unique across the whole document: two messages each
     // numbering from 0 would make Copy pick up the wrong block.
     const gid = "cb" + (++_fenceSeq);
-    fences.push(`<div class="codebox"><div class="msg-meta"><span>${esc(lang || "code")}</span><button class="btn tiny" data-copy-code="${gid}">Copy</button></div><pre data-code="${gid}"><code>${code}</code></pre></div>`);
+    const runnable = /^(js|javascript|py|python)$/i.test(lang || "");
+    const rkey = runnable ? codeHash(lang + "\n" + code) : "";
+    fences.push(`<div class="codebox"><div class="msg-meta"><span>${esc(lang || "code")}</span><span class="row" style="gap:6px">${runnable ? `<button class="btn tiny" data-run-code="${rkey}" data-code-id="${gid}" data-lang="${esc(lang)}" title="Run in a sandbox">▶ Run</button>` : ""}<button class="btn tiny" data-copy-code="${gid}">Copy</button></span></div><pre data-code="${gid}"><code>${code}</code></pre>${runnable ? `<div class="run-out" data-run-out="${rkey}" hidden></div>` : ""}</div>`);
     return ` CODE${i} `;
   });
 
@@ -6248,6 +7322,7 @@ const VIEWS = [
   { id: "runs", glyph: "↺", label: "History", count: () => state.swarms.length + state.runs.length },
   { id: "skills", glyph: "✦", label: "Skills", count: () => (state.skills || []).filter(s => s.enabled).length || null },
   { id: "trace", glyph: "⧉", label: "Trace", count: () => RUN.spans.length || null },
+  { id: "library", glyph: "❖", label: "Library", count: () => (state.settings.presets || []).length || null },
   { id: "free", glyph: "∞", label: "Free AI", count: () => freeCandidates().length || null },
   { id: "providers", glyph: "⬡", label: "Providers & Keys", count: () => configuredProviders().length || null },
   { id: "bridge", glyph: "⇄", label: "Bridge & CLIs", count: () => (state.bridge.clis || []).filter(c => c.installed).length || null },
@@ -6265,22 +7340,42 @@ function render() {
   const scrolled = $("#messages");
   const wasAtBottom = scrolled ? (scrolled.scrollHeight - scrolled.scrollTop - scrolled.clientHeight < 90) : true;
 
+  // A background re-render (streaming, a bridge poll) must not steal the field
+  // someone is typing in, or throw away what they typed in it.
+  const ae = document.activeElement;
+  const keep = ae && ae.id && $("#app")?.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && ae.type !== "file"
+    ? { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd, v: ae.value, t: ae.type } : null;
+
   if (state.layout === "simple") {
     document.body.dataset.layout = "simple";
-    $("#app").innerHTML = renderSimple();
+    $("#app").innerHTML = renderSimple() + renderChatsDrawer();
     $("#mobileNav").innerHTML = "";
   } else {
     document.body.dataset.layout = "advanced";
-    $("#app").innerHTML = `<div class="app">${renderRail()}<div class="stage">${renderView()}</div></div>`;
+    $("#app").innerHTML = `<div class="app">${renderRail()}<div class="stage">${renderView()}</div></div>` + renderChatsDrawer();
     $("#mobileNav").innerHTML = VIEWS.slice(0, 5).map(v =>
       `<button data-nav="${v.id}" class="${state.view === v.id ? "active" : ""}"><span class="glyph">${v.glyph}</span><span>${esc(v.label.split(" ")[0])}</span></button>`).join("");
   }
 
   if (state.draft !== undefined && $("#chatInput")) $("#chatInput").value = state.draft;
+  if (keep) {
+    const n = document.getElementById(keep.id);
+    if (n && n !== document.activeElement && /^(INPUT|TEXTAREA)$/.test(n.tagName)) {
+      if (keep.t !== "checkbox" && keep.t !== "radio" && n.value !== keep.v) n.value = keep.v;
+      n.focus();
+      try { if (keep.s != null) n.setSelectionRange(keep.s, keep.e) } catch {}
+    }
+  }
   afterRender(wasAtBottom);
 }
 
 function afterRender(stickBottom = true) {
+  dockSchedule();
+  for (const k of RUNNER.out.keys()) runnerPaint(k);
+  const cs = $("#chatSearch");
+  if (cs && state._chatSearchCaret != null) { cs.focus(); cs.setSelectionRange(state._chatSearchCaret, state._chatSearchCaret); state._chatSearchCaret = null }
+  if (state._renameFocus && $("#renameInput")) { $("#renameInput").focus(); $("#renameInput").select(); state._renameFocus = false }
+  if (state._editFocus && state.editingMsgId) { const t = $(`[data-edit-msg="${state.editingMsgId}"]`); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length) } state._editFocus = false }
   const m = $("#messages");
   if (m && stickBottom) m.scrollTop = m.scrollHeight;
   if (state.view === "monitor") setTimeout(() => { drawGraph(); drawEventChart() }, 30);
@@ -6350,6 +7445,7 @@ function renderView() {
     case "chat": return renderChatTab();
     case "jev": return renderJev();
     case "free": return renderFree();
+    case "library": return renderLibrary();
     case "tasks": return renderTasks();
     case "memory": return renderMemory();
     case "sandbox": return renderSandbox();
@@ -6481,25 +7577,43 @@ function emptyChat() {
 }
 
 function renderMessage(m) {
+  const busy = RUN.active;
   if (m.role === "user") {
+    if (state.editingMsgId === m.id) return `<div class="msg user editing"><div class="msg-meta"><span>Edit — sending replaces everything after this message</span></div>
+      <div class="bubble"><textarea class="edit-box" data-edit-msg="${m.id}" rows="4">${esc(m.content)}</textarea>
+      <div class="row" style="gap:6px;margin-top:8px;justify-content:flex-end"><button class="btn tiny" data-action="msg-edit-cancel">Cancel</button><button class="btn tiny primary" data-action="msg-edit-save" data-msg="${m.id}">Save &amp; send ⌘↵</button></div></div></div>`;
     return `<div class="msg user"><div class="msg-meta"><span>${fmtTime(m.created)}</span><span>You</span></div>
-      <div class="bubble">${md(m.content)}${m.attachments?.length ? `<div class="chips" style="margin-top:8px">${m.attachments.map(a => `<span class="chip">📎 ${esc(a.name)}</span>`).join("")}</div>` : ""}</div></div>`;
+      <div class="bubble">${md(m.content)}${m.attachments?.length ? `<div class="chips" style="margin-top:8px">${m.attachments.map(a => `<span class="chip">📎 ${esc(a.name)}</span>`).join("")}</div>` : ""}</div>
+      ${busy ? "" : `<div class="msg-actions"><button data-action="msg-edit" data-msg="${m.id}" title="Edit and resend">✎</button><button data-action="msg-copy" data-msg="${m.id}" title="Copy">⧉</button><button data-action="msg-delete" data-msg="${m.id}" title="Delete">🗑</button></div>`}</div>`;
   }
-  const sw = state.swarms.find(x => x.id === m.swarmId);
-  const arts = (m.artifactIds || []).map(id => state.artifacts.find(a => a.id === id)).filter(Boolean);
+  const v = msgView(m);
+  const sw = state.swarms.find(x => x.id === v.swarmId);
+  const arts = (v.artifactIds || []).map(id => state.artifacts.find(a => a.id === id)).filter(Boolean);
+  const isLast = currentSession().messages[currentSession().messages.length - 1] === m;
+  const act = (a, t, label, extra = "") => `<button data-action="${a}" data-msg="${m.id}" title="${t}" ${extra}>${label}</button>`;
   return `<div class="msg assistant">
-    <div class="msg-meta"><span>Orchestrator</span><span>${esc(m.model || "")}</span><span>${fmtTime(m.created)}</span>
+    <div class="msg-meta"><span>Orchestrator</span><span>${esc(v.model || "")}</span><span>${fmtTime(v.created || m.created)}</span>
       ${sw?.agents.length ? `<span class="pill accent">${sw.agents.length} agents</span>` : ""}
       ${sw?.toolLog.length ? `<span class="pill info">${sw.toolLog.length} tool calls</span>` : ""}
       ${m.streaming ? `<span class="typing"><i></i><i></i><i></i></span>` : ""}
     </div>
     <div class="bubble">
       ${m.reasoning && state.settings.showThinking && m.streaming ? `<details style="margin-bottom:10px"><summary class="subtle" style="cursor:pointer">thinking…</summary><pre class="mono" style="white-space:pre-wrap;font-size:11px;color:var(--muted);max-height:180px;overflow:auto">${esc(m.reasoning.slice(-2500))}</pre></details>` : ""}
-      ${md(m.content || "…")}
+      ${renderRich(v.content || "…", m.streaming)}
       ${sw?.toolLog.length ? renderToolTrace(sw) : ""}
-      ${m.dod ? renderDoD(m.dod, m.dodReport) : ""}
-      ${arts.length ? `<div class="chips" style="margin-top:10px">${arts.map(a => `<button class="chip" data-open-artifact="${a.id}">◇ ${esc(a.name)}</button>`).join("")}</div>` : ""}
+      ${v.dod ? renderDoD(v.dod, v.dodReport) : ""}
+      ${arts.length ? `<div class="chips" style="margin-top:10px">${arts.map(a => `<button class="chip" data-dock-open="${esc(a.name)}">◇ ${esc(a.name)}${a.version > 1 ? " · v" + a.version : ""}</button>`).join("")}</div>` : ""}
     </div>
+    ${m.streaming ? "" : `<div class="msg-actions">
+      ${v.total > 1 ? `<span class="ver">${act("msg-ver", "Previous version", "‹", `data-dir="-1" ${v.index === 0 ? "disabled" : ""}`)}<b>${v.index + 1}/${v.total}</b>${act("msg-ver", "Next version", "›", `data-dir="1" ${v.index === v.total - 1 ? "disabled" : ""}`)}</span>` : ""}
+      ${act("msg-copy", "Copy", "⧉")}
+      ${act("msg-read", SPEAKING === m.id ? "Stop reading" : "Read aloud", SPEAKING === m.id ? "⏹" : "🔊")}
+      ${isLast && !busy ? act("msg-regen", "Regenerate (keeps this version)", "↻") + act("msg-continue", "Continue", "⏵") : ""}
+      ${act("msg-rate", "Good response", "👍", `data-dir="1" class="${m.rating > 0 ? "on" : ""}"`)}
+      ${act("msg-rate", "Bad response", "👎", `data-dir="-1" class="${m.rating < 0 ? "on" : ""}"`)}
+      ${busy ? "" : act("msg-delete", "Delete", "🗑")}
+    </div>`}
+    ${isLast && !busy && !m.streaming && !v.old && (m.followUps || []).length ? `<div class="followups">${m.followUps.map(q => `<button class="chip" data-action="msg-followup" data-text="${esc(q)}">↳ ${esc(q)}</button>`).join("")}</div>` : ""}
   </div>`;
 }
 
@@ -6967,7 +8081,7 @@ Object.assign(TASK_MODEL_PREF, {
 });
 
 /* ------------------------------------------------------------ persistence */
-async function saveSession(s) { s.updated = ts(); try { await DB.put("sessions", JSON.parse(JSON.stringify(s))) } catch {} }
+async function saveSession(s) { s.updated = ts(); if (s.temporary) return; try { await DB.put("sessions", JSON.parse(JSON.stringify(s))) } catch {} }
 async function saveSettings() { await putKV("settings", state.settings) }
 async function saveSkin() { state.skin.autosave !== false && LS.set("swarmos.skin", JSON.stringify(state.skin)) }
 
@@ -7240,11 +8354,12 @@ function renderCmdk(q) {
 
 /* ---------------------------------------------------------------- actions */
 function go(view) { state.view = view; state.selectedRun = null; render(); window.scrollTo({ top: 0, behavior: state.skin.motion === "none" ? "auto" : "smooth" }) }
-function newSession() {
-  const s = { id: uid("sess"), title: "New session", created: ts(), updated: ts(), messages: [] };
+function newSession(opts = {}) {
+  const s = { id: uid("sess"), title: opts.temporary ? "Temporary chat" : "New session", created: ts(), updated: ts(), messages: [], temporary: !!opts.temporary };
   state.sessions.unshift(s); state.currentSessionId = s.id; state.currentSwarmId = null;
   state.draft = ""; state.livePreview = "";
-  saveSession(s); go("orchestrator"); toast("New session.");
+  if (window.innerWidth < 900) state.chatsOpen = false;
+  saveSession(s); go("orchestrator"); toast(opts.temporary ? "Temporary chat — nothing here is saved." : "New session.");
 }
 async function send() {
   const ta = $("#chatInput");
@@ -7305,7 +8420,7 @@ function bind() {
     }
     if (d.copyCode != null) { const pre = document.querySelector(`[data-code="${d.copyCode}"]`); return copyText(pre?.innerText || "") }
     if (d.openArtifact) { state.selectedArtifact = d.openArtifact; state.artifactPreview = false; return go("artifacts") }
-    if (d.openSession) { state.currentSessionId = d.openSession; const sw = state.swarms.find(x => x.sessionId === d.openSession); state.currentSwarmId = sw?.id || null; return go("orchestrator") }
+    if (d.openSession) { if (window.innerWidth < 900) state.chatsOpen = false; state.currentSessionId = d.openSession; const sw = state.swarms.find(x => x.sessionId === d.openSession); state.currentSwarmId = sw?.id || null; return go("orchestrator") }
     if (d.openSwarm) { state.currentSwarmId = d.openSwarm; return go("swarm") }
     if (d.replaySwarm) {
       const sw = state.swarms.find(x => x.id === d.replaySwarm);
@@ -7604,6 +8719,73 @@ async function doAction(action, el) {
     case "download-bridge": { download("swarm-bridge.mjs", bridgeSource(), "text/javascript"); toast("Saved. Run it with: node swarm-bridge.mjs --allow-cli"); return }
     case "copy-bridge": return copyText(bridgeSource());
     case "copy-bridge-cmd": return copyText("node swarm-bridge.mjs --allow-cli");
+    case "chats-toggle": state.chatsOpen = !state.chatsOpen; return render();
+    case "preset-add": {
+      const name = ($("#presetName")?.value || "").trim(), base = $("#presetBase")?.value, system = $("#presetSystem")?.value || "";
+      if (!name || !base) return toast("A preset needs a name and a base model.");
+      if (parseRef(base).provider === "preset") return toast("Pick a real model as the base.");
+      const id = (slugify(name, 28) || "preset") + "-" + Math.random().toString(36).slice(2, 6);
+      state.settings.presets = [...(state.settings.presets || []), { id, name: name.slice(0, 60), base, system, temperature: $("#presetTemp")?.value ?? "" }];
+      await saveSettings(); toast("Preset saved — it is in every model picker now."); return render();
+    }
+    case "preset-del": state.settings.presets = (state.settings.presets || []).filter(x => x.id !== el.dataset.id); await saveSettings(); return render();
+    case "preset-use": state.settings.orchestratorModel = makeRef("preset", el.dataset.id); await saveSettings(); toast("Chat now runs on " + refLabel(state.settings.orchestratorModel)); return render();
+    case "prompt-add": {
+      const command = slugify($("#promptCmd")?.value || "", 24), title = ($("#promptTitle")?.value || "").trim(), content = $("#promptBody")?.value || "";
+      if (!command || !content.trim()) return toast("A prompt needs a command and some text.");
+      state.settings.promptLib = [...promptLib().filter(x => x.command !== command), { id: uid("p"), command, title: title || command, content }];
+      await saveSettings(); toast("Added /" + command); return render();
+    }
+    case "prompt-del": state.settings.promptLib = promptLib().filter(x => x.id !== el.dataset.id); await saveSettings(); return render();
+    case "prompt-reset": state.settings.promptLib = []; await saveSettings(); return render();
+    case "chats-close": state.chatsOpen = false; state.exportingId = null; return render();
+    case "new-temp-session": return newSession({ temporary: true });
+    case "chat-rename": state.renamingId = el.dataset.sid; state._renameFocus = true; return render();
+    case "chat-rename-save": {
+      const id = el.dataset.sid || el.dataset.rename, ss = state.sessions.find(x => x.id === id), v = ($("#renameInput")?.value || "").trim();
+      if (ss && v) { ss.title = v.slice(0, 120); await saveSession(ss) }
+      state.renamingId = null; return render();
+    }
+    case "chat-pin": { const ss = state.sessions.find(x => x.id === el.dataset.sid); if (ss) { ss.pinned = !ss.pinned; await saveSession(ss) } return render() }
+    case "chat-archive": {
+      const ss = state.sessions.find(x => x.id === el.dataset.sid); if (!ss) return;
+      ss.archived = !ss.archived; await saveSession(ss);
+      if (ss.archived && state.currentSessionId === ss.id) state.currentSessionId = state.sessions.find(x => !x.archived && x.id !== ss.id)?.id || null;
+      toast(ss.archived ? "Archived." : "Restored."); return render();
+    }
+    case "chat-delete": {
+      const ss = state.sessions.find(x => x.id === el.dataset.sid); if (!ss) return;
+      if (!confirm("Delete “" + ss.title + "”? This cannot be undone.")) return;
+      state.sessions = state.sessions.filter(x => x.id !== ss.id);
+      try { await DB.del("sessions", ss.id) } catch {}
+      if (state.currentSessionId === ss.id) state.currentSessionId = state.sessions.find(x => !x.archived)?.id || null;
+      return render();
+    }
+    case "chat-export": state.exportingId = state.exportingId === el.dataset.sid ? null : el.dataset.sid; return render();
+    case "chat-export-fmt": exportChat(el.dataset.sid, el.dataset.fmt); state.exportingId = null; return render();
+    case "chat-export-all": return download("swarm-os-chats-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify({ format: "swarm-os-chats", version: 1, sessions: state.sessions.filter(x => !x.temporary) }, null, 2), "application/json");
+    case "voice": return toggleDictation();
+    case "msg-copy": { const { m } = findMsg(el.dataset.msg); return m ? copyText(m.role === "user" ? m.content : msgView(m).content) : null }
+    case "msg-edit": state.editingMsgId = el.dataset.msg; state._editFocus = true; return render();
+    case "msg-edit-cancel": state.editingMsgId = null; return render();
+    case "msg-edit-save": return editAndResend(el.dataset.msg, $(`[data-edit-msg="${el.dataset.msg}"]`)?.value);
+    case "msg-regen": return regenerateMessage(el.dataset.msg);
+    case "msg-continue": return runOrchestrator("Continue exactly where you stopped. Do not repeat anything you already wrote.");
+    case "msg-read": return readAloud(el.dataset.msg);
+    case "msg-rate": {
+      const { s: ss, m } = findMsg(el.dataset.msg); if (!m) return;
+      const d = Number(el.dataset.dir); m.rating = m.rating === d ? 0 : d; await saveSession(ss); return render();
+    }
+    case "msg-delete": {
+      const { s: ss, i } = findMsg(el.dataset.msg); if (i < 0) return;
+      ss.messages.splice(i, 1); await saveSession(ss); return render();
+    }
+    case "msg-ver": {
+      const { s: ss, m } = findMsg(el.dataset.msg); if (!m) return;
+      const v = msgView(m); m.versionIndex = clamp(v.index + Number(el.dataset.dir), 0, v.total - 1);
+      await saveSession(ss); return render();
+    }
+    case "msg-followup": { const t = el.dataset.text || ""; const ta = $("#chatInput"); if (ta) ta.value = t; state.draft = t; return send() }
     case "free-toggle": {
       state.settings.freeMode = !state.settings.freeMode;
       if (state.settings.freeMode) await applyFreeLineup(false); else { await saveSettings(); toast("Free mode off — metered models are allowed again.") }
@@ -7773,8 +8955,8 @@ function selfTest() {
   check("Every provider entry is well-formed", () => {
     for (const [id, p] of Object.entries(PROVIDERS)) {
       if (!p.label || !p.wire) return id + " is missing label or wire";
-      if (!["openai", "anthropic", "cli", "jev"].includes(p.wire)) return id + " has an unknown wire: " + p.wire;
-      if (!["cli"].includes(p.wire) && id !== "custom" && !p.base) return id + " has no base URL";
+      if (!["openai", "anthropic", "cli", "jev", "preset"].includes(p.wire)) return id + " has an unknown wire: " + p.wire;
+      if (!["cli", "preset"].includes(p.wire) && id !== "custom" && !p.base) return id + " has no base URL";
       if (p.wire === "cli" && !p.cli) return id + " has no cli binary name";
       if (p.sharesKeyWith && !PROVIDERS[p.sharesKeyWith]) return id + " shares a key with a provider that does not exist";
     }
@@ -8166,6 +9348,11 @@ async function boot() {
 
   state.ready = true;
   bind();
+  dockMount();
+  // Installable web app. Not inside the Mac app (it is already an app) and not
+  // from file:// (service workers need http or https).
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !NATIVE) navigator.serviceWorker.register("sw.js").catch(() => {});
+  window.addEventListener("resize", () => dockSchedule(true));
   render();
 
   // Refresh the catalogue in the background; stale entries are the usual reason
@@ -8192,13 +9379,13 @@ else boot();
 
 /* Exposed for debugging from the console and for the self-test harness. */
 window.SWARM = {
-  state, RUN, render, DB, selfTest, md,
+  state, RUN, render, DB, selfTest, md, doAction, currentSession, msgView, ratingBoard, promptLib, extractMath,
   callModel, callOR, runAgent, runOrchestrator, dispatchTool,
   TOOL_SCHEMAS, AGENT_TOOLS, ROLES, BLUEPRINTS, OPS,
   PROVIDERS, PROVIDER_IDS, parseRef, makeRef, providerReady, providerBlocker, configuredProviders,
   buildOpenAIBody, buildAnthropicBody, toAnthropic, parseAnthropicResponse, consumeAnthropicStream,
   webSearch, fetchUrl, SEARCH_ENGINES, activeSearchEngine,
-  bridgeHello, bridgeSource, isFreeRef, freeCandidates, freeGate, applyFreeLineup, NATIVE, parseSkill, skillMarkdown, skillsPreamble, createSkillWithModel,
+  bridgeHello, bridgeSource, LIVE, scanFences, artifactBlocks, partialJsonField, artifactSrcdoc, dockOpen, liveFromText, isFreeRef, freeCandidates, freeGate, applyFreeLineup, NATIVE, parseSkill, skillMarkdown, skillsPreamble, createSkillWithModel,
   verifyDoD, fallbackDoD, startOpenRouterOAuth, completeOpenRouterOAuth,
   jevAsk, jevReady, normaliseJev, jevRoute, jevGate, jevScoreWork, hybridJudge,
   jevLifecycleReview, jevPlanRoster, jevCheckDoD, agentValue, localDifficulty,

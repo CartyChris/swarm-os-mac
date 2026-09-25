@@ -27,6 +27,11 @@ jobs:
         run: npm run test:e2e
         env:
           CHROME_PATH: /usr/bin/google-chrome
+      - name: CDN-backed features (KaTeX, Pyodide, Mermaid, React previews)
+        run: npm run test:cdn
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          REQUIRE_CDN: "1"
       - name: Electron smoke test (dev tree)
         run: xvfb-run -a npm run test:electron
         env:

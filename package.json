@@ -20,7 +20,8 @@
     "test:electron": "node test/electron.smoke.mjs",
     "icon": "node scripts/make-icon.mjs",
     "dist:mac": "electron-builder --mac --publish never",
-    "dist:dir": "electron-builder --dir --publish never"
+    "dist:dir": "electron-builder --dir --publish never",
+    "test:cdn": "node --test test/cdn.e2e.mjs"
   },
   "build": {
     "appId": "dev.swarm-os.mac",

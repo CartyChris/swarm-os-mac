@@ -223,3 +223,20 @@ test("aborting a proxied request cancels the upstream request", async () => {
     assert.equal(result, true, "upstream request stayed open after the client aborted");
   } finally { up.closeAllConnections(); up.close(); }
 });
+
+test("serves the web-app manifest, service worker and icons — and nothing else beside the app", async () => {
+  const dir = path.dirname(path.join(tmp, "app.html"));
+  fs.writeFileSync(path.join(dir, "manifest.webmanifest"), '{"name":"x"}');
+  fs.writeFileSync(path.join(dir, "sw.js"), "self.x=1");
+  fs.mkdirSync(path.join(dir, "icons"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "icons", "icon-192.png"), "PNG");
+  fs.writeFileSync(path.join(dir, "secret.txt"), "nope");
+  const m = await fetch(bridge.url + "/manifest.webmanifest");
+  assert.equal(m.status, 200); assert.match(m.headers.get("content-type"), /manifest\+json/);
+  const w = await fetch(bridge.url + "/sw.js");
+  assert.equal(w.status, 200); assert.match(w.headers.get("content-type"), /javascript/);
+  assert.equal((await fetch(bridge.url + "/icons/icon-192.png")).status, 200);
+  assert.equal((await fetch(bridge.url + "/secret.txt")).status, 404);
+  assert.equal((await fetch(bridge.url + "/icons/../secret.txt")).status, 404);
+  assert.equal((await fetch(bridge.url + "/icons/%2e%2e%2fsecret.png")).status, 404);
+});

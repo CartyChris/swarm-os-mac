@@ -449,6 +449,8 @@ export const CLI_AGENTS = {
  */
 export const CMD_DENY = /(^|[;&|\s])(rm\s+-rf\s+\/(?!\w)|mkfs|dd\s+if=|shutdown|reboot|halt|:\(\)\{|chmod\s+-R\s+777\s+\/|curl[^|]*\|\s*(ba)?sh|wget[^|]*\|\s*(ba)?sh)/i;
 
+const APP_ASSETS = { "/manifest.webmanifest": "application/manifest+json", "/sw.js": "text/javascript; charset=utf-8" };
+
 /* ================================================================ BRIDGE */
 export async function startBridge(opts = {}) {
   const env = opts.env || process.env;
@@ -620,6 +622,16 @@ export async function startBridge(opts = {}) {
         "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"
       });
       return res.end(html);
+    }
+    /* The app's installable-web-app files, from the same folder. A fixed list,
+       so nothing else beside the app is reachable. */
+    if (APP_FILE && req.method === "GET" && (APP_ASSETS[url.pathname] || /^\/icons\/[a-z0-9-]+\.png$/.test(url.pathname))) {
+      const file = path.join(path.dirname(APP_FILE), url.pathname.slice(1));
+      if (path.relative(path.dirname(APP_FILE), file).startsWith("..")) return send(res, 404, { ok: false, error: "No such route." });
+      let data;
+      try { data = fs.readFileSync(file); } catch { return send(res, 404, { ok: false, error: "No such file." }); }
+      res.writeHead(200, { "Content-Type": APP_ASSETS[url.pathname] || "image/png", "Cache-Control": url.pathname === "/sw.js" ? "no-cache" : "public, max-age=3600" });
+      return res.end(data);
     }
 
     if (url.pathname === "/v1/hello") {
