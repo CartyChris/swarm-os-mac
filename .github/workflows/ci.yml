@@ -15,8 +15,8 @@ jobs:
     name: Tests (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -37,8 +37,8 @@ jobs:
     needs: test
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -52,6 +52,10 @@ jobs:
             npx electron-builder --mac --publish never
           else
             echo "No signing certificate configured: building ad-hoc signed (runs locally; Gatekeeper will ask once)."
+            # Unset secrets arrive as empty strings; electron-builder would read an
+            # empty CSC_LINK as a path (the repo root) and try to sign with it.
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
             npx electron-builder --mac --publish never -c.mac.identity=- -c.mac.hardenedRuntime=false
           fi
         env:
