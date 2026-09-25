@@ -508,6 +508,13 @@ html[data-texture=scanlines] body::after{background-image:repeating-linear-gradi
 html[data-mobilenav=hidden] #mobileNav{display:none!important}
 html[data-mobilenav=compact] #mobileNav button span:last-child{display:none}
 @media (pointer:coarse){html[data-taps=large] .btn,html[data-taps=large] .icon-btn{min-height:42px;min-width:42px}html[data-taps=large] .msg-actions button{padding:8px 9px}}
+
+/* ---- work board */
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.board-lane{background:var(--panel3);border:1px solid var(--line);border-radius:var(--r2);padding:8px;min-height:80px}
+.board-h{display:flex;justify-content:space-between;font:700 11px var(--font);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:2px 4px 8px}
+.board-card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px}
 </style>
 </head>
 <body>
@@ -1914,6 +1921,7 @@ const DEFAULT_SETTINGS = {
 
   /* Forge 5 / RTBT: MCP servers, the web source policy, the judge panel. */
   mcpServers: [], webAllowDomains: "", webBlockDomains: "", judgeFanout: 1,
+  critiqueRevise: false, minAccepted: 0, judgeCriteria: "", autoCompress: true, contextBudget: 60000,
   cacheResponses: true, showThinking: true, soundOnDone: false,
   traceEnabled: true,
 
@@ -4601,7 +4609,7 @@ function modelOptions(selected, purpose) {
 function renderProviders() {
   const s = state.settings;
   const ready = configuredProviders();
-  const slot = (key, label, hint) => `<div><label>${label}</label><select data-set="${key}">${modelOptions(s[key], key === "orchestratorModel" ? "workspace" : "default")}</select><p class="subtle" style="margin-top:4px">${hint}</p></div>`;
+  const slot = (key, label, hint) => `<div><label>${label}</label><select data-set="${key}">${modelOptions(s[key], key === "orchestratorModel" ? "workspace" : "default")}</select><p class="subtle" style="margin-top:4px">${hint}</p>${modelCapabilitiesText(s[key]) ? `<p class="subtle mono" style="margin-top:2px;font-size:11px">${esc(modelCapabilitiesText(s[key]))}</p>` : ""}</div>`;
   return `<div class="grid">
     ${hero("Providers &amp; Keys",
       "Every model here can come from anywhere: OpenRouter, a GLM Coding Plan, a Kimi plan, a direct lab key, or a CLI already installed on this machine. Each slot below picks a provider <i>and</i> a model.",
@@ -4714,6 +4722,9 @@ function renderProviders() {
         <div><label>Timeout per call (s)</label><input type="number" min="15" max="900" value="${s.timeoutSec}" data-set-num="timeoutSec"></div>
         <div><label>Budget ceiling ($)</label><input type="number" min="0" step="0.25" value="${s.budgetUsd}" data-set-num="budgetUsd"></div>
         <div><label>Judge threshold</label><input type="number" min="0" max="100" value="${s.judgeThreshold}" data-set-num="judgeThreshold"></div>
+        <div><label>Minimum admitted before answering</label><input type="number" min="0" max="20" value="${Number(s.minAccepted) || 0}" data-set-num="minAccepted"><p class="subtle" style="margin-top:4px">0 = off. Below it, the orchestrator is told to dispatch more.</p></div>
+        <label class="check"><input type="checkbox" data-set="critiqueRevise" ${s.critiqueRevise ? "checked" : ""}>Critique &amp; revise: an independent reviewer audits every final answer, and it is rewritten when there are real defects</label>
+        <div style="grid-column:1/-1"><label>Judge house rules (added to every verdict)</label><textarea data-set="judgeCriteria" rows="3" placeholder="Reject vague agreement. Reward file-level specificity, tests and sources. Treat unsupported numbers as defects.">${esc(s.judgeCriteria || "")}</textarea></div>
         <div><label>Judges per verdict</label><select data-set="judgeFanout">${[1, 2, 3, 5].map(n => `<option value="${n}" ${Number(s.judgeFanout || 1) === n ? "selected" : ""}>${n === 1 ? "1 (single judge)" : n + " — median decides"}</option>`).join("")}</select></div>
         <div><label>Temperature · ${s.temperature}</label><input type="range" min="0" max="2" step="0.05" value="${s.temperature}" data-set-num="temperature"></div>
         <div><label>Top-p · ${s.top_p}</label><input type="range" min="0.1" max="1" step="0.01" value="${s.top_p}" data-set-num="top_p"></div>
@@ -4894,6 +4905,8 @@ function renderLibrary() {
         <label class="check"><input type="checkbox" data-set="followUps" ${s.followUps ? "checked" : ""}>Suggest follow-up questions after each reply</label>
         <label class="check"><input type="checkbox" data-set="artifactAutoOpen" ${s.artifactAutoOpen !== false ? "checked" : ""}>Open the Artifact panel when something starts being built</label>
         <label class="check"><input type="checkbox" data-set="artifactCards" ${s.artifactCards !== false ? "checked" : ""}>Show artifact cards in chat instead of the full code</label>
+        <label class="check"><input type="checkbox" data-set="autoCompress" ${s.autoCompress !== false ? "checked" : ""}>Trim the oldest turns when a long chat exceeds the context budget</label>
+        <div><label>Context budget (characters)</label><input type="number" min="8000" max="400000" step="1000" value="${Number(s.contextBudget) || 60000}" data-set-num="contextBudget"></div>
         <div><label>Read-aloud speed</label><select data-set="ttsRate">${[.8, 1, 1.2, 1.5].map(r => `<option value="${r}" ${Number(s.ttsRate || 1) === r ? "selected" : ""}>${r}×</option>`).join("")}</select></div>
       </div>
     </div>
@@ -5494,7 +5507,7 @@ async function judgeOne(work, criteria, judgeModel) {
   try {
     const res = await callOR([
       { role: "system", content: "You are a strict independent judge. Return ONLY JSON. Score 0-100 against the criteria given and nothing else. Do not reward length, confidence, or agreeable tone. Reject work that is vague, duplicated, unsupported, or off-task, and say exactly which." },
-      { role: "user", content: `CRITERIA:\n${criteria}\n\nWORK TO JUDGE:\n${String(work).slice(0, 24000)}\n\nAdmission threshold: ${state.settings.judgeThreshold}. Set accepted=true only when score meets it.` }
+      { role: "user", content: `CRITERIA:\n${criteria}${state.settings.judgeCriteria ? "\n\nHOUSE RULES (always apply):\n" + state.settings.judgeCriteria : ""}\n\nWORK TO JUDGE:\n${String(work).slice(0, 24000)}\n\nAdmission threshold: ${state.settings.judgeThreshold}. Set accepted=true only when score meets it.` }
     ], {
       model: judgeModel || state.settings.judgeModel,
       temperature: .05, maxTokens: 1200,
@@ -5795,8 +5808,13 @@ async function dispatchTool(name, args, swarm) {
       const lifecycle = await jevLifecycleReview(swarm);
       await saveSwarm(swarm);
 
+      const acceptedN = real.filter(a => a.verdict?.accepted).length, minAcc = Number(state.settings.minAccepted) || 0;
+      const gate = args.judge && state.settings.judgeEnabled && minAcc > 0 && acceptedN < minAcc
+        ? { accepted: acceptedN, minimum: minAcc, note: "Fewer contributions passed the judge than the minimum. Dispatch more agents with genuinely different angles before answering, or say plainly that the evidence is thin." }
+        : undefined;
       return {
         ok: true,
+        admission_gate: gate,
         lifecycle: lifecycle && lifecycle.standDown.length
           ? { stood_down: lifecycle.standDown, note: "These agents were not worth their cost. Do not re-dispatch the same angle; either change it or leave it out." }
           : undefined,
@@ -6021,7 +6039,9 @@ async function runOrchestrator(userText, attachments = []) {
       history.push({ role: "assistant", content: msgView(m).content });
     }
   }
-  const messages = [{ role: "system", content: orchestratorSystem() }, ...history.slice(-24)];
+  const packed = s.autoCompress !== false ? compressHistory(history.slice(-24), Number(s.contextBudget) || 60000) : { history: history.slice(-24), trimmed: 0 };
+  if (packed.trimmed) logEvent("context", "Trimmed " + packed.trimmed + " older turn(s) to fit the context budget", { level: "info" });
+  const messages = [{ role: "system", content: orchestratorSystem() }, ...packed.history];
 
   let finalText = "";
   let stoppedReason = null;
@@ -6086,6 +6106,20 @@ async function runOrchestrator(userText, attachments = []) {
   if (stoppedReason === "stopped") finalText = (assistant.content || "") + "\n\n---\n\n**Stopped.** Partial work above; the swarm's agents are on the Swarm tab.";
 
   assistant.content = finalText || assistant.content || "_No response text was returned._";
+  if (s.critiqueRevise && !stoppedReason && assistant.content.length > 200) {
+    try {
+      const audit = await auditAndRevise(userText, assistant.content, (_d, full, kind) => {
+        if (kind !== "content") return;
+        assistant.revising = true; assistant.content = full;
+        liveFromText("msg:" + assistant.id + ":rev", full, { source: "Orchestrator (revised)", sessionId: session.id, swarmId: swarm.id, base: session.title });
+        scheduleRender(120);
+      });
+      assistant.audit = { defects: audit.defects, revised: !!audit.revised };
+      if (audit.revised) assistant.content = audit.revised;
+      liveFinish("msg:" + assistant.id + ":rev");
+    } catch (e) { assistant.audit = { error: String(e.message || e) } }
+    assistant.revising = false;
+  }
   assistant.streaming = false;
   liveFinish("msg:" + assistant.id);
 
@@ -6499,6 +6533,8 @@ function dockMount() {
         <button class="btn tiny" data-dock="copy" title="Copy source">Copy</button>
         <button class="btn tiny" data-dock="download" title="Download">⤓</button>
         <button class="btn tiny" data-dock="snapshot" title="Save a PNG snapshot">PNG</button>
+        <button class="btn tiny" data-dock="snap-chat" title="Attach a snapshot to the chat for a vision model to review">📷→chat</button>
+        <button class="btn tiny" data-dock="lane" title="Review this artifact with an Ops lane">Review</button>
         <button class="btn tiny" data-dock="reload" title="Restart the preview">↻</button>
         <button class="btn tiny" data-dock="full" title="Full screen">⤢</button>
         <button class="btn tiny" data-dock="close" title="Close">✕</button>
@@ -6570,6 +6606,8 @@ async function dockAction(a) {
     case "copy": return e ? copyText(content) : null;
     case "download": return e ? download(e.name, content, "text/plain") : null;
     case "snapshot": return snapshotArtifact().catch(() => {});
+    case "snap-chat": return artifactSnapshotToChat();
+    case "lane": return artifactToLane();
     case "fix": {
       if (!e || !LIVE.error || RUN.active) return;
       const err = LIVE.error; LIVE.error = null; dockSchedule(true);
@@ -6809,7 +6847,7 @@ async function editAndResend(id, text) {
   text = String(text || "").trim();
   if (!text) return toast("The message is empty.");
   s.messages.splice(i);                    // everything from this message on is replaced
-  state.editingMsgId = null;
+  state.editingMsgId = null; state.editDraft = null;
   await saveSession(s);
   await runOrchestrator(text, []);
 }
@@ -7148,6 +7186,7 @@ async function slashPick(k) {
   ta.dispatchEvent(new Event("input", { bubbles: true }));
 }
 document.addEventListener("input", e => {
+  if (e.target?.id === "editBox") state.editDraft = e.target.value;
   if (e.target?.id === "chatInput") { SLASH.sel = 0; slashUpdate() }
   if (e.target?.id === "chatSearch") {
     state.chatQuery = e.target.value; state._chatSearchCaret = e.target.selectionStart;
@@ -7442,6 +7481,18 @@ async function diagnostics() {
   add("Providers ready", configuredProviders().join(", ") || "none", configuredProviders().length > 0);
   add("Free mode", state.settings.freeMode ? "on" : "off");
   add("MCP servers", mcpServers().length ? mcpServers().map(s => (s.name || s.url) + ": " + (MCP.status.get(s.id)?.state || "not connected")).join(" · ") : "none");
+  // Deployment readiness (Forge 5 "Vercel audit"): where keys live, and the headers this origin sends.
+  const keysHere = Object.keys(state.keys || {}).filter(k => state.keys[k]).length;
+  add("Keys stored in this browser", keysHere ? keysHere + " provider(s)" + (state.settings.persistKeys ? " (remembered on this device)" : " (this session only)") : "none");
+  if (HOSTED) add("Cloud bridge", state.bridge.cloud && state.bridge.connected ? "connected · " + (state.bridge.providers || []).length + " key(s) held server-side" : state.bridge.cloudAvailable === "yes" ? "available — pair it in Bridge & CLIs" : state.bridge.cloudAvailable === "unconfigured" ? "deployed but SWARM_BRIDGE_TOKEN is not set" : "not found", !!state.bridge.connected);
+  if (/^https?:$/.test(location.protocol)) {
+    try {
+      const r = await fetch(location.href, { method: "HEAD", cache: "no-store" });
+      const want = ["x-content-type-options", "referrer-policy", "x-frame-options"];
+      const have = want.filter(h => r.headers.get(h));
+      add("Security headers", have.length === want.length ? "all set (" + have.join(", ") + ")" : "missing: " + want.filter(h => !have.includes(h)).join(", "), have.length === want.length);
+    } catch {}
+  }
   add("CPU cores", navigator.hardwareConcurrency || "?");
   if (navigator.deviceMemory) add("Device memory", navigator.deviceMemory + " GB");
   add("Speech", ("speechSynthesis" in window ? "read-aloud ✓" : "read-aloud ✗") + " · " + ((window.SpeechRecognition || window.webkitSpeechRecognition) ? "dictation ✓" : "dictation ✗"));
@@ -7494,22 +7545,222 @@ document.addEventListener("change", async e => {
 });
 
 /* ---- PNG snapshot of the current artifact (static render: no scripts run) ---- */
-async function snapshotArtifact() {
+/* Static render of the current artifact as a PNG data URL (scripts do not run,
+   so canvas-drawn content is not captured). */
+async function snapshotDataUrl() {
   const { e, content } = dockCurrent();
-  if (!e) return toast("Nothing to snapshot.");
+  if (!e) throw new Error("nothing to snapshot");
   const W = 1280, H = 800;
-  let html = artifactSrcdoc(e.kind, content, e.name).replace(/<script[\s\S]*?<\/script>/gi, "");
-  html = html.replace(/^[\s\S]*?<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
-  const styles = (artifactSrcdoc(e.kind, content, e.name).match(/<style[\s\S]*?<\/style>/gi) || []).join("");
+  const doc = artifactSrcdoc(e.kind, content, e.name);
+  const html = doc.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/^[\s\S]*?<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
+  const styles = (doc.match(/<style[\s\S]*?<\/style>/gi) || []).join("");
   const xhtml = new XMLSerializer().serializeToString(new DOMParser().parseFromString(`<div xmlns="http://www.w3.org/1999/xhtml" style="width:${W}px;height:${H}px;overflow:hidden;background:#fff">${styles}${html}</div>`, "text/html").body.firstChild);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
   const img = new Image();
-  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = url }).catch(err => { toast("Snapshot failed: " + err.message); throw err });
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg) });
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   c.getContext("2d").drawImage(img, 0, 0);
-  c.toBlob(b => { if (!b) return toast("Snapshot failed."); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = e.name.replace(/\.[^.]+$/, "") + ".png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }, "image/png");
+  return c.toDataURL("image/png");
+}
+async function snapshotArtifact() {
+  const { e } = dockCurrent();
+  if (!e) return toast("Nothing to snapshot.");
+  let url; try { url = await snapshotDataUrl() } catch (err) { return toast("Snapshot failed: " + err.message) }
+  const a = document.createElement("a"); a.href = url; a.download = e.name.replace(/\.[^.]+$/, "") + ".png"; a.click();
   toast("Snapshot saved. Canvas and script-drawn content is not captured — it is a static render.");
+}
+
+/* ============================================================================
+   PASS 2 — the rest of Agent-OS Forge 5 and RTBT Forge, found by auditing them
+   function by function: critique-and-revise, a minimum of judged contributions
+   before the answer, editable judge rules, context auto-compression, a work
+   board from the final answer, run import, a local workspace scan, file → chat,
+   risk signals in Telemetry, graph export, artifacts to an Ops lane, and
+   artifact snapshots attached to chat for a vision model to review.
+   ========================================================================== */
+
+/* ---- critique and revise (Forge 5 "Critique + revise", "Source audit", "Code/security audit") ---- */
+async function auditAndRevise(question, answer, onDelta) {
+  const s = state.settings;
+  const r = await callModel([
+    { role: "system", content: "You are an adversarial reviewer. Find concrete defects in the answer: claims without support or sources, code that is wrong or untested, security problems, parts of the request that were skipped, contradictions. Return ONLY JSON: {\"defects\":[{\"issue\":\"…\",\"fix\":\"…\",\"severity\":\"high|medium|low\"}]}. Return an empty list when the answer is genuinely sound; never invent problems." },
+    { role: "user", content: "REQUEST:\n" + String(question).slice(0, 8000) + "\n\nANSWER:\n" + String(answer).slice(0, 40000) }
+  ], { ref: s.verifierModel || s.judgeModel, maxTokens: 1400, temperature: .1, stream: false });
+  const j = extractJson(r.content) || {};
+  const defects = (Array.isArray(j.defects) ? j.defects : []).filter(d => d && d.issue).slice(0, 12)
+    .map(d => ({ issue: String(d.issue).slice(0, 400), fix: String(d.fix || "").slice(0, 400), severity: ["high", "medium", "low"].includes(d.severity) ? d.severity : "medium" }));
+  const serious = defects.filter(d => d.severity !== "low");
+  if (!serious.length) return { defects, revised: null };
+  const rv = await callModel([
+    { role: "system", content: orchestratorSystem() },
+    { role: "user", content: question },
+    { role: "assistant", content: answer },
+    { role: "user", content: "An independent reviewer found these defects in your answer:\n" + serious.map((d, i) => `${i + 1}. [${d.severity}] ${d.issue}${d.fix ? " — fix: " + d.fix : ""}`).join("\n") + "\n\nWrite the complete answer again with these fixed, keeping everything that was right. If an artifact needs changes, re-emit the whole file with the same title. Do not mention this review." }
+  ], { ref: s.orchestratorModel, maxTokens: s.max_tokens, stream: true, onDelta });
+  return { defects, revised: String(rv.content || "").trim() || null };
+}
+
+/* ---- context budget: trim the oldest turns rather than failing or overpaying ---- */
+function compressHistory(history, budget) {
+  const size = m => typeof m.content === "string" ? m.content.length : JSON.stringify(m.content || "").length;
+  let total = history.reduce((n, m) => n + size(m), 0);
+  if (!budget || total <= budget) return { history, trimmed: 0 };
+  const out = history.map(m => ({ ...m }));
+  let trimmed = 0;
+  for (let i = 0; i < out.length - 4 && total > budget; i++) {
+    const m = out[i];
+    if (typeof m.content !== "string" || m.content.length <= 900) continue;
+    const before = m.content.length;
+    m.content = m.content.slice(0, 700) + "\n\n[… earlier turn trimmed to fit the context budget …]";
+    total -= before - m.content.length; trimmed++;
+  }
+  return { history: out, trimmed };
+}
+
+/* ---- work board from the final answer (Forge 5 "Board") ---- */
+const BOARD_LANES = ["Backlog", "Doing", "Review", "Done"];
+function boardFromText(text) {
+  const cards = [];
+  let heading = "", listy = false;
+  for (const raw of String(text || "").split("\n")) {
+    const line = raw.trim();
+    const h = line.match(/^#{1,6}\s+(.+)$/) || line.match(/^\*\*(.+?)\*\*:?$/);
+    if (h) { heading = h[1]; listy = /next|todo|to-do|task|ticket|step|action|plan|backlog|roadmap|follow|deliverable|milestone/i.test(heading); continue }
+    const cb = line.match(/^[-*]\s+\[( |x|X)\]\s+(.+)$/);
+    if (cb) { cards.push({ text: cb[2], lane: cb[1] === " " ? "Backlog" : "Done", group: heading }); continue }
+    const li = line.match(/^(?:[-*]|\d+[.)])\s+(.{6,})$/);
+    if (li && listy) cards.push({ text: li[1], lane: "Backlog", group: heading });
+  }
+  const seen = new Set();
+  return cards.filter(c => { const k = c.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+    .slice(0, 60).map((c, i) => ({ id: "card" + i + "_" + Math.random().toString(36).slice(2, 6), text: c.text.replace(/\*\*/g, "").slice(0, 240), lane: c.lane, group: c.group }));
+}
+function renderBoard(sw) {
+  if (!sw) return "";
+  const cards = sw.board || [];
+  return `<div class="panel">
+    <div class="panel-title"><div><h3>Work board</h3><p>Tasks and next steps pulled out of the final answer. Move them along as you go.</p></div>
+      <div class="row" style="gap:6px"><button class="btn small" data-action="board-gen">${cards.length ? "Rebuild" : "Build"} from the answer</button>${cards.length ? `<button class="btn small" data-action="board-export">Export JSON</button>` : ""}</div></div>
+    ${cards.length ? `<div class="board">${BOARD_LANES.map(l => { const list = cards.filter(c => c.lane === l); return `<div class="board-lane"><div class="board-h">${l} <span>${list.length}</span></div>
+      ${list.map(c => `<div class="board-card"><div>${esc(c.text)}</div>${c.group ? `<div class="subtle" style="font-size:11px;margin-top:4px">${esc(c.group)}</div>` : ""}
+        <div class="row" style="gap:4px;margin-top:6px">${l !== BOARD_LANES[0] ? `<button class="btn tiny" data-action="board-move" data-card="${c.id}" data-dir="-1">◀</button>` : ""}${l !== BOARD_LANES[BOARD_LANES.length - 1] ? `<button class="btn tiny" data-action="board-move" data-card="${c.id}" data-dir="1">▶</button>` : ""}</div></div>`).join("") || `<div class="subtle" style="font-size:12px;padding:6px">—</div>`}</div>` }).join("")}</div>`
+      : `<div class="empty">${sw.finalText ? "No task lists found yet — Build looks for checkboxes and for lists under headings like “Next steps” or “Tasks”." : "Available once the run has an answer."}</div>`}
+  </div>`;
+}
+
+/* ---- import a run exported as JSON (Forge 5 "Import JSON") ---- */
+async function importRunFile(file) {
+  try {
+    const sw = JSON.parse(await file.text());
+    if (!sw || !Array.isArray(sw.agents) || !sw.objective) throw new Error("not a SWARM OS run export");
+    if (state.swarms.some(x => x.id === sw.id)) sw.id = uid("swarm");
+    sw.imported = ts();
+    state.swarms.unshift(sw); state.currentSwarmId = sw.id;
+    try { await DB.put("swarms", sw) } catch {}
+    toast("Imported run: " + sw.objective.slice(0, 60)); go("swarm");
+  } catch (e) { toast("Could not import: " + e.message) }
+}
+
+/* ---- local workspace scan, no model involved (RTBT "Local Workspace Scan") ---- */
+function localWorkspaceScan() {
+  const findings = [];
+  const rules = [
+    { re: /(api[_-]?key|secret|token|passw(or)?d|private[_-]?key|client[_-]?secret)\s*[:=]\s*["']?([A-Za-z0-9_\-\/+=.]{12,})/ig, type: "secret-pattern", severity: "high" },
+    { re: /-----BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY-----/g, type: "private-key", severity: "high" },
+    { re: /\b(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9-]{10,})/g, type: "known-token-format", severity: "high" },
+    { re: /(eval\(|new Function\(|innerHTML\s*=|dangerouslySetInnerHTML|child_process|exec\(|shell\s*=\s*True|pickle\.loads|yaml\.load\(|md5\(|sha1\(|verify\s*=\s*False|rejectUnauthorized:\s*false)/ig, type: "risky-code", severity: "medium" },
+    { re: /\bhttp:\/\/(?!localhost|127\.0\.0\.1)[a-z0-9.-]+/ig, type: "plain-http-url", severity: "low" }
+  ];
+  for (const f of state.files) {
+    const text = String(f.text || "");
+    for (const r of rules) {
+      r.re.lastIndex = 0; let m, n = 0;
+      while ((m = r.re.exec(text)) && n < 20) {
+        n++;
+        const line = text.slice(0, m.index).split("\n").length;
+        findings.push({ file: f.path || f.name, line, type: r.type, severity: r.severity, evidence: m[0].replace(/([A-Za-z0-9_\-\/+=.]{6})[A-Za-z0-9_\-\/+=.]{6,}/, "$1…").slice(0, 80) });
+      }
+    }
+  }
+  const order = { high: 0, medium: 1, low: 2 };
+  findings.sort((a, b) => order[a.severity] - order[b.severity]);
+  return findings;
+}
+async function runLocalScan() {
+  if (!state.files.length) return toast("Import some files first.");
+  const f = localWorkspaceScan();
+  state.localScan = { at: ts(), findings: f };
+  const md = `# Local workspace scan\n\n_${new Date().toLocaleString()} · ${state.files.length} files · pattern matching only, no model involved_\n\n| Severity | Type | File | Line | Evidence |\n|---|---|---|---|---|\n` +
+    (f.slice(0, 300).map(x => `| ${x.severity} | ${x.type} | ${x.file} | ${x.line} | \`${x.evidence.replace(/\|/g, "\\|")}\` |`).join("\n") || "| — | none | — | — | — |") +
+    "\n\nPattern matches are leads, not verdicts: confirm each one, and rotate any real secret that was committed.\n";
+  await addArtifact({ name: "workspace-scan.md", language: "markdown", content: md, source: "local-scan", sessionId: currentSession().id });
+  toast(f.length + " finding(s). Report saved as workspace-scan.md.");
+  render();
+}
+function fileToChat(id) {
+  const f = state.files.find(x => x.id === id); if (!f) return;
+  const body = String(f.text || "").slice(0, 24000);
+  state.draft = `Review ${f.path || f.name} for correctness, security, performance and maintainability. Findings first, ranked by severity, each with a fix.\n\n\`\`\`${f.language || ""}\n${body}\n\`\`\`${(f.text || "").length > 24000 ? "\n\n(truncated to the first 24,000 characters)" : ""}`;
+  state.layout = "simple"; state.settings.layout = "simple"; render();
+  setTimeout(() => $("#chatInput")?.focus(), 30);
+}
+
+/* ---- risk signals and a legend for the provenance graph (RTBT Visual Monitoring) ---- */
+function computeRisk() {
+  const texts = [...state.runs.map(r => r.output || ""), ...state.events.map(e => `${e.label || e.message || ""} ${e.error || ""}`), ...state.swarms.flatMap(s => (s.agents || []).map(a => a.output || "")), ...(state.localScan?.findings || []).map(f => f.severity + " " + f.type)].join("\n").toLowerCase();
+  const high = (texts.match(/critical|exposed (secret|token|key)|private key|remote code execution|\brce\b|sql injection|secret-pattern|known-token-format/g) || []).length + state.events.filter(e => e.level === "error").length;
+  const medium = (texts.match(/\bxss\b|\bidor\b|\bcsrf\b|\bssrf\b|misconfig|deprecated|outdated|weak (cipher|hash|password)|risky-code|warning/g) || []).length;
+  const low = (texts.match(/\btodo\b|plain-http-url|\binfo\b/g) || []).length;
+  return { high, medium, low, score: clamp(high * 15 + medium * 6 + low, 0, 100) };
+}
+const NODE_MEANING = { session: "Chat sessions", swarm: "Swarm runs", agent: "Agents dispatched", model: "Models used", run: "Ops lane runs", file: "Imported files", artifact: "Artifacts produced", event: "Local telemetry", skill: "Skills", tool: "Tool calls" };
+function renderRiskAndLegend() {
+  const r = computeRisk();
+  let g = { nodes: [] }; try { g = buildGraphData() } catch {}
+  const counts = {}; (g.nodes || []).forEach(n => { counts[n.type || n.kind || "node"] = (counts[n.type || n.kind || "node"] || 0) + 1 });
+  return `<div class="cols2">
+    <div class="panel"><div class="panel-title"><div><h3>Risk signals</h3><p>Keyword signals across lane runs, agent output, errors and the last local scan. A prompt to look closer, not a verdict.</p></div></div>
+      <div class="metrics"><div class="metric"><b>${r.high}</b><span>High</span></div><div class="metric"><b>${r.medium}</b><span>Medium</span></div><div class="metric"><b>${r.low}</b><span>Low</span></div><div class="metric"><b>${r.score}</b><span>Score /100</span></div></div></div>
+    <div class="panel"><div class="panel-title"><div><h3>What the graph is made of</h3><p>Every node comes from a local store.</p></div><button class="btn small" data-action="export-graph">Export graph JSON</button></div>
+      <table class="data"><tbody>${Object.entries(counts).map(([k, v]) => `<tr><td class="mono">${esc(k)}</td><td>${v}</td><td class="subtle">${esc(NODE_MEANING[k] || "")}</td></tr>`).join("") || `<tr><td class="subtle">No nodes yet.</td></tr>`}</tbody></table></div>
+  </div>`;
+}
+
+/* ---- artifacts → Ops lane review, and → chat as an image for a vision model ---- */
+async function artifactToLane() {
+  const { e, content } = dockCurrent();
+  if (!e) return;
+  const lane = OPS.find(o => o.key === (e.kind === "html" || e.kind === "react" ? "game_security_audit" : "artifact_studio")) || OPS.find(o => o.key === "artifact_studio") || OPS[0];
+  toast("Reviewing " + e.name + " with " + lane.title + "…");
+  const r = await runOpsLane(lane.key, `Review this artifact (${e.name}, ${KIND_LABEL[e.kind] || "file"}). Findings first, then concrete fixes.\n\n\`\`\`${e.lang || ""}\n${String(content).slice(0, 24000)}\n\`\`\``);
+  toast(r.ok ? "Review ready in Ops Deck → " + lane.title : "Lane failed: " + String(r.error || "").slice(0, 80));
+}
+async function artifactSnapshotToChat() {
+  const { e } = dockCurrent();
+  if (!e) return;
+  const dataUrl = await snapshotDataUrl().catch(() => null);
+  if (!dataUrl) return toast("Could not render a snapshot of this artifact.");
+  state.pendingAttachments.push({ id: uid("att"), name: e.name.replace(/\.[^.]+$/, "") + ".png", type: "image/png", size: dataUrl.length, dataUrl });
+  toast("Snapshot attached — ask a vision model to review the layout.");
+  render();
+}
+
+document.addEventListener("change", e => {
+  if (e.target?.id === "importRun" && e.target.files?.[0]) { importRunFile(e.target.files[0]); e.target.value = "" }
+});
+
+/* ---- what a model can do, in one line (RTBT modelCapabilitiesText) ---- */
+function modelCapabilitiesText(ref) {
+  const m = modelMeta(ref);
+  if (!m) return "";
+  const bits = [];
+  const inp = m.architecture?.input_modalities; if (inp?.length) bits.push(inp.join("+"));
+  if (m.context_length) bits.push("ctx " + fmtNum(m.context_length));
+  const sp = m.supported_parameters || [];
+  ["tools", "reasoning", "structured_outputs", "response_format", "web_search_options"].forEach(p => { if (sp.includes(p)) bits.push(p.replace("_options", "").replace("_", " ")) });
+  const pr = m.pricing; if (pr && (Number(pr.prompt) || Number(pr.completion))) bits.push("$" + (Number(pr.prompt) * 1e6).toFixed(2) + "/$" + (Number(pr.completion) * 1e6).toFixed(2) + " per M");
+  else if (pr) bits.push("free");
+  return bits.join(" · ");
 }
 
 /* ------------------------------------------------------------- markdown
@@ -7969,7 +8220,7 @@ function renderMessage(m) {
   const busy = RUN.active;
   if (m.role === "user") {
     if (state.editingMsgId === m.id) return `<div class="msg user editing"><div class="msg-meta"><span>Edit — sending replaces everything after this message</span></div>
-      <div class="bubble"><textarea class="edit-box" data-edit-msg="${m.id}" rows="4">${esc(m.content)}</textarea>
+      <div class="bubble"><textarea class="edit-box" id="editBox" data-edit-msg="${m.id}" rows="4">${esc(state.editDraft ?? m.content)}</textarea>
       <div class="row" style="gap:6px;margin-top:8px;justify-content:flex-end"><button class="btn tiny" data-action="msg-edit-cancel">Cancel</button><button class="btn tiny primary" data-action="msg-edit-save" data-msg="${m.id}">Save &amp; send ⌘↵</button></div></div></div>`;
     return `<div class="msg user"><div class="msg-meta"><span>${fmtTime(m.created)}</span><span>You</span></div>
       <div class="bubble">${md(m.content)}${m.attachments?.length ? `<div class="chips" style="margin-top:8px">${m.attachments.map(a => `<span class="chip">📎 ${esc(a.name)}</span>`).join("")}</div>` : ""}</div>
@@ -7990,6 +8241,7 @@ function renderMessage(m) {
       ${m.reasoning && state.settings.showThinking && m.streaming ? `<details style="margin-bottom:10px"><summary class="subtle" style="cursor:pointer">thinking…</summary><pre class="mono" style="white-space:pre-wrap;font-size:11px;color:var(--muted);max-height:180px;overflow:auto">${esc(m.reasoning.slice(-2500))}</pre></details>` : ""}
       ${renderRich(v.content || "…", m.streaming)}
       ${sw?.toolLog.length ? renderToolTrace(sw) : ""}
+      ${m.audit && !v.old ? `<details class="audit" style="margin-top:10px"><summary class="subtle" style="cursor:pointer">${m.audit.error ? "Review could not run" : m.audit.revised ? "Revised after an independent review · " + m.audit.defects.length + " defect(s)" : "Independent review · " + (m.audit.defects.length ? m.audit.defects.length + " minor note(s)" : "no defects found")}</summary>${m.audit.error ? `<p class="subtle">${esc(m.audit.error)}</p>` : `<ul class="subtle" style="margin:6px 0 0;padding-left:18px">${(m.audit.defects || []).map(d => `<li><span class="pill ${d.severity === "high" ? "bad" : d.severity === "medium" ? "warn" : ""}">${esc(d.severity)}</span> ${esc(d.issue)}</li>`).join("")}</ul>`}</details>` : ""}
       ${v.dod ? renderDoD(v.dod, v.dodReport) : ""}
       ${arts.length ? `<div class="chips" style="margin-top:10px">${arts.map(a => `<button class="chip" data-dock-open="${esc(a.name)}">◇ ${esc(a.name)}${a.version > 1 ? " · v" + a.version : ""}</button>`).join("")}</div>` : ""}
     </div>
@@ -8052,6 +8304,7 @@ function renderSwarmView() {
 
     ${sw.dod ? `<div class="panel">${renderDoD(sw.dod, sw.dodReport, true)}</div>` : ""}
     ${renderEvidenceLedger(sw)}
+    ${renderBoard(sw)}
 
     <div class="panel">
       <div class="panel-title"><div><h3>Agents</h3><p>Every model the orchestrator woke up, with its full brief and full output. Click one to expand.</p></div>
@@ -8248,7 +8501,10 @@ function renderWorkspace() {
        <button class="btn" data-action="import-folder-click">Import folder</button>
        <button class="btn" data-action="export-workspace">Export everything</button>
        <button class="btn" data-action="import-workspace-click">Import a bundle</button>
+       <button class="btn" data-action="local-scan">Local scan</button>
        <button class="btn danger" data-action="clear-files">Clear files</button>`)}
+    ${state.localScan ? `<div class="panel"><div class="panel-title"><div><h3>Local scan</h3><p>Pattern matching only — no model saw your files. ${state.localScan.findings.length} finding(s), ${fmtTime(state.localScan.at)}. Full report: <button class="chip" data-dock-open="workspace-scan.md">workspace-scan.md</button></p></div></div>
+      ${state.localScan.findings.length ? `<table class="data"><thead><tr><th>Severity</th><th>Type</th><th>File</th><th>Line</th><th>Evidence</th></tr></thead><tbody>${state.localScan.findings.slice(0, 40).map(x => `<tr><td><span class="pill ${x.severity === "high" ? "bad" : x.severity === "medium" ? "warn" : ""}">${x.severity}</span></td><td class="mono">${esc(x.type)}</td><td class="mono">${esc(x.file)}</td><td>${x.line}</td><td class="mono">${esc(x.evidence)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Nothing matched.</div>`}</div>` : ""}
     <input id="hiddenFiles" type="file" multiple class="hide"><input id="hiddenFolder" type="file" multiple webkitdirectory directory class="hide"><input id="hiddenBundle" type="file" accept=".json" class="hide">
     <div class="metrics">
       <div class="metric"><b>${state.files.length}</b><span>Files</span></div>
@@ -8263,10 +8519,11 @@ function renderWorkspace() {
         <input id="fileSearch" placeholder="Filter…" value="${esc(state.fileFilter)}" style="margin-bottom:11px">
         <div class="scroll" style="max-height:460px">
           ${files.map(f => `<div class="rowitem">
-            <span class="ico">${f.type.startsWith("image") ? "🖼" : "📄"}</span>
+            <span class="ico">${String(f.type || "").startsWith("image") ? "🖼" : "📄"}</span>
             <div class="info"><b class="nowrap">${esc(f.path || f.name)}</b><p>${esc(f.language)} · ${bytes(f.size)} · ${esc((f.hash || "").slice(0, 10))}</p></div>
             <button class="btn tiny ${f.selected ? "primary" : ""}" data-pin-file="${f.id}">${f.selected ? "pinned" : "pin"}</button>
             <button class="btn tiny" data-view-file="${f.id}">view</button>
+            <button class="btn tiny" data-action="file-to-chat" data-file="${f.id}" title="Review this file in chat">→ chat</button>
             <button class="btn tiny danger" data-del-file="${f.id}">×</button>
           </div>`).join("") || `<div class="empty">Nothing imported yet.</div>`}
         </div>
@@ -8338,6 +8595,7 @@ function renderMonitor() {
       <div class="metric"><b>${state.runs.length}</b><span>Lane runs</span></div>
       <div class="metric"><b>${state.artifacts.length}</b><span>Artifacts</span></div>
     </div>
+    ${renderRiskAndLegend()}
     <div class="cols2">
       <div class="panel">
         <div class="panel-title"><div><h3>Provenance graph</h3><p>Sessions, swarms, agents, models, files, artifacts — and what produced what. Click a node.</p></div></div>
@@ -8374,7 +8632,8 @@ function renderNodeInspector() {
 function renderHistory() {
   return `<div class="grid">
     ${hero("History", "Every swarm and every lane run is kept. Open one to read its agents, or replay it against a different model line-up.",
-      `<button class="btn danger" data-action="clear-history">Clear history</button>`)}
+      `<label class="btn" style="margin:0">Import a run<input id="importRun" type="file" accept=".json,application/json" hidden></label>
+       <button class="btn danger" data-action="clear-history">Clear history</button>`)}
     <div class="panel">
       <div class="panel-title"><div><h3>Swarm runs</h3><p>${state.swarms.length} recorded.</p></div></div>
       ${state.swarms.length ? `<table class="data"><thead><tr><th>When</th><th>Objective</th><th>Agents</th><th>Hops</th><th>Cost</th><th>DoD</th><th>Status</th><th></th></tr></thead><tbody>
@@ -9123,6 +9382,16 @@ async function doAction(action, el) {
     case "copy-bridge": return copyText(bridgeSource());
     case "copy-bridge-cmd": return copyText("node swarm-bridge.mjs --allow-cli");
     case "chats-toggle": state.chatsOpen = !state.chatsOpen; return render();
+    case "board-gen": { const sw = currentSwarm(); if (!sw) return; sw.board = boardFromText(sw.finalText); await saveSwarm(sw); toast(sw.board.length + " card(s)."); return render() }
+    case "board-move": {
+      const sw = currentSwarm(); const c = sw?.board?.find(x => x.id === el.dataset.card); if (!c) return;
+      c.lane = BOARD_LANES[clamp(BOARD_LANES.indexOf(c.lane) + Number(el.dataset.dir), 0, BOARD_LANES.length - 1)];
+      await saveSwarm(sw); return render();
+    }
+    case "board-export": { const sw = currentSwarm(); return sw ? download(`swarm-board-${sw.id}.json`, JSON.stringify(sw.board || [], null, 2)) : null }
+    case "export-graph": { let g = {}; try { g = buildGraphData() } catch {} return download("swarm-graph-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(g, null, 2)) }
+    case "local-scan": return runLocalScan();
+    case "file-to-chat": return fileToChat(el.dataset.file);
     case "mcp-add": {
       const url = ($("#mcpUrl")?.value || "").trim(), name = ($("#mcpName")?.value || "").trim() || "server";
       try { new URL(url) } catch { return toast("That URL is not valid.") }
@@ -9194,8 +9463,8 @@ async function doAction(action, el) {
     case "chat-export-all": return download("swarm-os-chats-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify({ format: "swarm-os-chats", version: 1, sessions: state.sessions.filter(x => !x.temporary) }, null, 2), "application/json");
     case "voice": return toggleDictation();
     case "msg-copy": { const { m } = findMsg(el.dataset.msg); return m ? copyText(m.role === "user" ? m.content : msgView(m).content) : null }
-    case "msg-edit": state.editingMsgId = el.dataset.msg; state._editFocus = true; return render();
-    case "msg-edit-cancel": state.editingMsgId = null; return render();
+    case "msg-edit": state.editingMsgId = el.dataset.msg; state.editDraft = null; state._editFocus = true; return render();
+    case "msg-edit-cancel": state.editingMsgId = null; state.editDraft = null; return render();
     case "msg-edit-save": return editAndResend(el.dataset.msg, $(`[data-edit-msg="${el.dataset.msg}"]`)?.value);
     case "msg-regen": return regenerateMessage(el.dataset.msg);
     case "msg-continue": return runOrchestrator("Continue exactly where you stopped. Do not repeat anything you already wrote.");
@@ -9813,7 +10082,7 @@ else boot();
 
 /* Exposed for debugging from the console and for the self-test harness. */
 window.SWARM = {
-  state, RUN, render, DB, selfTest, md, doAction, currentSession, applySkin, MCP, mcpConnect, mcpCallTool, mcpToolSchemas, orchestratorTools, domainAllowed, judgePanel, requestPreview, diagnostics, artifactTool, recordSources, msgView, ratingBoard, promptLib, extractMath,
+  state, RUN, render, DB, selfTest, md, doAction, currentSession, applySkin, compressHistory, boardFromText, localWorkspaceScan, computeRisk, modelCapabilitiesText, auditAndRevise, importRunFile, MCP, mcpConnect, mcpCallTool, mcpToolSchemas, orchestratorTools, domainAllowed, judgePanel, requestPreview, diagnostics, artifactTool, recordSources, msgView, ratingBoard, promptLib, extractMath,
   callModel, callOR, runAgent, runOrchestrator, dispatchTool,
   TOOL_SCHEMAS, AGENT_TOOLS, ROLES, BLUEPRINTS, OPS,
   PROVIDERS, PROVIDER_IDS, parseRef, makeRef, providerReady, providerBlocker, configuredProviders,

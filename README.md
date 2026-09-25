@@ -57,7 +57,16 @@ On a phone, sign in with OpenRouter and turn free mode on.
 - **Artifact tools for agents.** `read_artifact` and `preview_artifact` let agents revise an app and show it to you.
 - **Request preview and diagnostics.** See the exact request as cURL, and run a health check of the browser.
 - **Design Studio additions.** Button styles and shapes, wallpapers, textures, phone navigation modes and large tap targets.
-- **Security and ops lanes.** All 59 were already present from RTBT, in the Ops Deck.
+- **Critique and revise.** Optional. An independent reviewer audits each final answer, and it is rewritten when real defects turn up; the review is shown under the reply.
+- **Council controls.** Editable judge "house rules" apply to every verdict. A minimum number of admitted contributions can be required before the orchestrator answers.
+- **Context budget.** Long chats trim their oldest turns instead of failing or overpaying.
+- **Work board.** Next steps and tasks from the final answer become a board you can move cards across.
+- **Run exchange.** Runs can be exported as JSON and imported back.
+- **Local workspace scan.** Finds secrets, private keys, known token formats and risky code patterns with no model involved, and saves a report. Any imported file can be sent to chat for review.
+- **Telemetry.** Risk signals, a legend of what the provenance graph is built from, and graph export.
+- **Artifact review.** Send an artifact to an Ops lane for review, or attach a snapshot to chat for a vision model.
+- **Model capabilities.** Modalities, context size, tools, reasoning support and price are shown under each model slot.
+- **Security and ops lanes.** All 59 were already present from RTBT, in the Ops Deck. RTBT's "seed demo telemetry" was left out on purpose: SWARM OS's telemetry only shows real events.
 
 ## The Mac app
 
@@ -75,9 +84,12 @@ To ship signed and notarized builds, add these repository secrets: `MAC_CERTS`, 
 
 ## On the web (Vercel)
 
-`vercel.json` builds `public/` with a zero-dependency script and serves the app as an installable web app (manifest, service worker, home-screen icons). Every push to `main` redeploys.
+`vercel.json` builds `public/` with a zero-dependency script and serves the app as an installable web app (manifest, service worker, home-screen icons).
 
-On a phone, open the site and choose **Share → Add to Home Screen** (iOS) or **Install app** (Android).
+**Live at <https://swarm-os-tau.vercel.app>** (Vercel project `swarm-os`). On a phone, open it and choose **Share → Add to Home Screen** (iOS) or **Install app** (Android).
+
+- **Who can open it.** Vercel Authentication is on, the team's default, so the site asks visitors to log in to Vercel with access to this team. To make it open to anyone, turn it off in **Project → Settings → Deployment Protection**. Your API keys stay safe either way: they live in each browser or in Vercel's environment, never in the page.
+- **Automatic deploys.** Connect the repository once in **Project → Settings → Git** (`CartyChris/swarm-os-mac`, production branch `main`). Until then, new versions are deployed by hand.
 
 ### Cloud bridge (optional)
 

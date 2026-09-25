@@ -41,11 +41,17 @@ const ollama = http.createServer((req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: '["What about mobile?","Show a code example","Make it faster"]' }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 9 } }));
       }
+      if (/adversarial reviewer/.test(sys)) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ defects: [{ issue: "Claims 99% uptime without a source", fix: "cite or remove", severity: "high" }, { issue: "Tiny style nit", severity: "low" }] }) }, finish_reason: "stop" }] }));
+      }
+      if (body.stream && /An independent reviewer found these defects/.test(lastText)) return streamSlow(res, "REVISED ANSWER: uptime claim removed.");
       if (/strict independent judge/.test(sys)) {
         const score = { "judge-a": 90, "judge-b": 80, "judge-c": 20 }[body.model] ?? 75;
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ accepted: score >= 70, score, summary: "s", reason: "r" + score, defects: score < 50 ? ["weak"] : [] }) }, finish_reason: "stop" }] }));
       }
+      if (body.stream && /REVIEWME/.test(lastText)) return streamSlow(res, "Original answer. The service has 99% uptime and is the best option for everyone involved in this decision, trust me on the numbers.\n\n## Next steps\n- Write the migration plan\n- Add load tests\n- [x] Pick a database");
       if (/MATHTEST/.test(lastText)) return streamSlow(res, "Energy: $E = mc^2$ and $$\\int_0^1 x^2\\,dx$$ but it costs $5 and $10 today.");
       if (/RUNTEST/.test(lastText)) return streamSlow(res, "Try:\n\n```js\nconst xs = [1, 2, 3];\nconsole.log('sum', xs.reduce((a, b) => a + b));\ntry { console.log(parent.SWARM ? 'LEAK' : 'isolated') } catch (e) { console.log('isolated') }\nreturn xs.length;\n```");
       const text = "FAKE-OLLAMA says hi to: " + String(typeof last?.content === "string" ? last.content : JSON.stringify(last?.content)).slice(0, 60);
@@ -296,6 +302,9 @@ test("editing a user message resends from that point", async (t) => {
   const uid = await page.evaluate(() => SWARM.currentSession().messages[0].id);
   await page.click(`[data-action="msg-edit"][data-msg="${uid}"]`);
   await page.fill(`[data-edit-msg="${uid}"]`, "edited ask");
+  // A background re-render while editing must not lose the edit.
+  await page.evaluate(() => SWARM.render());
+  assert.equal(await page.inputValue(`[data-edit-msg="${uid}"]`), "edited ask");
   seen.length = 0;
   await page.click(`[data-action="msg-edit-save"][data-msg="${uid}"]`);
   await page.waitForFunction(() => !SWARM.RUN.active && SWARM.currentSession().messages.length === 2 && SWARM.currentSession().messages[0].content === "edited ask", null, { timeout: 15000 });
@@ -529,6 +538,109 @@ test("Design Studio: wallpaper, texture and button styles apply", async (t) => {
   });
   assert.deepEqual({ w: d.w, t: d.t, b: d.b, s: d.s }, { w: "aurora", t: "grid", b: "neon", s: "pill" });
   assert.match(d.bg, /radial-gradient/);
+});
+
+
+test("critique & revise: an independent review rewrites an answer with real defects", async (t) => {
+  if (skip) return t.skip(skip);
+  seen.length = 0;
+  await page.evaluate(() => { Object.assign(SWARM.state.settings, { critiqueRevise: true, followUps: false, useTools: false, requireDoD: false, judgeCriteria: "Treat unsupported numbers as defects." }); SWARM.doAction("new-session"); });
+  await page.evaluate(() => SWARM.runOrchestrator("REVIEWME please"));
+  const m = await page.evaluate(() => { const x = SWARM.currentSession().messages.at(-1); return { content: x.content, audit: x.audit } });
+  assert.equal(m.content, "REVISED ANSWER: uptime claim removed.");
+  assert.equal(m.audit.revised, true);
+  assert.equal(m.audit.defects.length, 2);
+  assert.match(await page.locator(".msg.assistant details.audit summary").last().innerText(), /Revised after an independent review · 2 defect/);
+  await page.evaluate(() => { SWARM.state.settings.critiqueRevise = false; });
+});
+
+test("work board is built from the answer's task lists and cards move between lanes", async (t) => {
+  if (skip) return t.skip(skip);
+  const b = await page.evaluate(() => SWARM.boardFromText("Intro\n## Next steps\n- Write the migration plan\n1. Add load tests\n- [x] Pick a database\n## Background\n- not a task at all here"));
+  assert.deepEqual(b.map((c) => [c.text, c.lane]), [["Write the migration plan", "Backlog"], ["Add load tests", "Backlog"], ["Pick a database", "Done"]]);
+  await page.evaluate(() => { const sw = SWARM.state.swarms[0]; sw.finalText = "## Tasks\n- Ship it\n- Test it"; SWARM.state.currentSwarmId = sw.id; SWARM.state.layout = "advanced"; SWARM.state.view = "swarm"; SWARM.render(); });
+  await page.click('[data-action="board-gen"]');
+  await page.waitForSelector(".board-card");
+  await page.locator('.board-card [data-action="board-move"][data-dir="1"]').first().click();
+  await page.waitForFunction(() => SWARM.state.swarms[0].board.some((c) => c.lane === "Doing"));
+  await page.evaluate(() => { SWARM.state.layout = "simple"; SWARM.render(); });
+});
+
+test("minimum-admitted gate and judge house rules reach the swarm", async (t) => {
+  if (skip) return t.skip(skip);
+  seen.length = 0;
+  const r = await page.evaluate(async () => {
+    Object.assign(SWARM.state.settings, { minAccepted: 3, judgeEnabled: true, jevJudging: false, judgeFanout: 1 });
+    const res = await SWARM.dispatchTool("spawn_swarm", { agents: [{ role: "researcher", task: "look into it" }], judge: true }, SWARM.state.swarms[0]);
+    SWARM.state.settings.minAccepted = 0;
+    return res;
+  });
+  assert.equal(r.admission_gate?.minimum, 3);
+  assert.ok(r.admission_gate.accepted < 3);
+  const judgeCall = seen.find((b) => /strict independent judge/.test(b.messages[0].content));
+  assert.match(judgeCall.messages[1].content, /HOUSE RULES \(always apply\):\nTreat unsupported numbers as defects\./);
+});
+
+test("long chats are trimmed to the context budget, newest turns kept whole", async (t) => {
+  if (skip) return t.skip(skip);
+  const r = await page.evaluate(() => {
+    const h = Array.from({ length: 10 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: String(i).repeat(5000) }));
+    const out = SWARM.compressHistory(h, 20000);
+    return { trimmed: out.trimmed, total: out.history.reduce((n, m) => n + m.content.length, 0), last4: out.history.slice(-4).every((m) => m.content.length === 5000), untouched: SWARM.compressHistory(h, 1e6).trimmed };
+  });
+  assert.ok(r.trimmed >= 6 && r.total <= 26000 && r.last4 && r.untouched === 0, JSON.stringify(r));
+});
+
+test("local workspace scan finds secrets and risky code without a model; file → chat", async (t) => {
+  if (skip) return t.skip(skip);
+  seen.length = 0;
+  await page.evaluate(() => {
+    SWARM.state.files.push({ id: "f1", name: "app.js", path: "src/app.js", language: "javascript", size: 120, text: "const x = 1;\nconst api_key = \"sk-live-abcdefghijklmnop12345\";\nel.innerHTML = userInput;\nfetch('http://example.com/data')" });
+    SWARM.state.layout = "advanced"; SWARM.state.view = "workspace"; SWARM.render();
+  });
+  await page.click('[data-action="local-scan"]');
+  await page.waitForFunction(() => SWARM.state.localScan);
+  const f = await page.evaluate(() => SWARM.state.localScan.findings.map((x) => [x.severity, x.type, x.line]));
+  assert.deepEqual(f.slice(0, 3), [["high", "secret-pattern", 2], ["high", "known-token-format", 2], ["medium", "risky-code", 3]]);
+  assert.equal(seen.length, 0, "a local scan must not call a model");
+  assert.ok(await page.evaluate(() => !JSON.stringify(SWARM.state.localScan).includes("abcdefghijklmnop12345")), "evidence must be redacted");
+  await page.click('[data-action="file-to-chat"][data-file="f1"]');
+  assert.match(await page.inputValue("#chatInput"), /^Review src\/app\.js for correctness/);
+  await page.fill("#chatInput", "");
+});
+
+test("telemetry shows risk signals and exports the graph; runs import back", async (t) => {
+  if (skip) return t.skip(skip);
+  await page.evaluate(() => { SWARM.state.layout = "advanced"; SWARM.state.view = "monitor"; SWARM.render(); });
+  assert.match(await page.locator(".stage").innerText(), /Risk signals[\s\S]*High[\s\S]*What the graph is made of/i);
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click('[data-action="export-graph"]')]);
+  const g = JSON.parse(fs.readFileSync(await dl.path(), "utf8"));
+  assert.ok(Array.isArray(g.nodes) && g.nodes.length > 0);
+  const before = await page.evaluate(() => SWARM.state.swarms.length);
+  const file = path.join(outDir, "run-export.json");
+  fs.writeFileSync(file, JSON.stringify(await page.evaluate(() => SWARM.state.swarms[0])));
+  await page.evaluate(() => { SWARM.state.view = "runs"; SWARM.render(); });
+  await page.setInputFiles("#importRun", file);
+  await page.waitForFunction((n) => SWARM.state.swarms.length === n + 1, before);
+  await page.evaluate(() => { SWARM.state.layout = "simple"; SWARM.render(); });
+});
+
+test("an artifact snapshot can be attached to the chat for a vision model", async (t) => {
+  if (skip) return t.skip(skip);
+  const r = await page.evaluate(async () => {
+    SWARM.doAction("new-session");
+    SWARM.liveFromText("snaptest", "```html title=\"card.html\"\n<!doctype html>\n<html><body>\n<h1 style=\"color:#123\">Hello card</h1>\n</body></html>\n```", { sessionId: SWARM.currentSession().id });
+    SWARM.LIVE.active = "card.html";
+    SWARM.state.pendingAttachments.length = 0;
+    await SWARM.doAction("noop");
+    return true;
+  });
+  await page.click('#artifactDock [data-dock="snap-chat"]');
+  await page.waitForFunction(() => SWARM.state.pendingAttachments.length === 1, null, { timeout: 10000 });
+  const a = await page.evaluate(() => SWARM.state.pendingAttachments[0]);
+  assert.equal(a.name, "card.png"); assert.equal(a.type, "image/png");
+  assert.match(a.dataUrl, /^data:image\/png;base64,/);
+  await page.evaluate(() => { SWARM.state.pendingAttachments.length = 0; SWARM.render(); });
 });
 
 test("Free AI view renders and screenshots cleanly", async (t) => {
