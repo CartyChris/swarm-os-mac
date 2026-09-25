@@ -689,7 +689,8 @@ export async function startBridge(opts = {}) {
           const h = Object.assign({}, r.headers);
           delete h["content-encoding"]; delete h["content-length"];
           delete h["access-control-allow-origin"];
-          res.writeHead(r.statusCode || 502, Object.assign(h, { "Access-Control-Allow-Origin": "*" }));
+          // Expose-Headers lets the page read upstream headers such as Mcp-Session-Id.
+          res.writeHead(r.statusCode || 502, Object.assign(h, { "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "*" }));
           r.pipe(res);            // streams straight through, SSE included
         }
       );

@@ -486,6 +486,28 @@ body.dock-resizing .dock-frame{pointer-events:none}
 .slash-pop button b{font-family:var(--mono);color:var(--text);min-width:120px}
 .slash-pop button span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .slash-pop button.sel,.slash-pop button:hover{background:var(--panel3)}
+
+/* ---- Design Studio: button systems, wallpaper, texture, phone chrome */
+html[data-buttons=solid] .btn{background:var(--panel);backdrop-filter:none}
+html[data-buttons=outline] .btn:not(.primary){background:transparent}
+html[data-buttons=neon] .btn{box-shadow:0 0 0 1px var(--accent),0 0 18px color-mix(in srgb,var(--accent) 35%,transparent)}
+html[data-buttons=minimal] .btn:not(.primary){border-color:transparent;background:transparent}
+html[data-shape=pill] .btn,html[data-shape=pill] .icon-btn{border-radius:999px}
+html[data-shape=sharp] .btn,html[data-shape=sharp] .icon-btn{border-radius:5px}
+html[data-shape=square] .btn,html[data-shape=square] .icon-btn{border-radius:0}
+html:not([data-wallpaper=none]) body::before,html:not([data-texture=none]) body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1}
+html[data-wallpaper=aurora] body::before{background:radial-gradient(60% 50% at 12% 8%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 70%),radial-gradient(50% 45% at 88% 18%,color-mix(in srgb,var(--blue) 22%,transparent),transparent 70%),radial-gradient(60% 60% at 50% 105%,color-mix(in srgb,var(--violet) 20%,transparent),transparent 70%)}
+html[data-wallpaper=radar] body::before{background:repeating-radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--green) 10%,transparent) 0 1px,transparent 1px 64px),radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--green) 16%,transparent),transparent 60%)}
+html[data-wallpaper=paper] body::before{background:linear-gradient(180deg,color-mix(in srgb,var(--text) 3%,transparent),transparent 40%),repeating-linear-gradient(0deg,color-mix(in srgb,var(--text) 3%,transparent) 0 1px,transparent 1px 28px)}
+html[data-wallpaper=terminal] body::before{background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.55)),linear-gradient(180deg,color-mix(in srgb,var(--green) 8%,transparent),transparent)}
+html[data-wallpaper=flat] body::before{background:linear-gradient(160deg,var(--bg2),var(--bg))}
+html[data-texture] body::after{opacity:var(--texture-op,.3)}
+html[data-texture=grid] body::after{background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px}
+html[data-texture=dots] body::after{background-image:radial-gradient(var(--line2) 1.1px,transparent 1.6px);background-size:18px 18px}
+html[data-texture=scanlines] body::after{background-image:repeating-linear-gradient(0deg,color-mix(in srgb,var(--text) 7%,transparent) 0 1px,transparent 1px 3px)}
+html[data-mobilenav=hidden] #mobileNav{display:none!important}
+html[data-mobilenav=compact] #mobileNav button span:last-child{display:none}
+@media (pointer:coarse){html[data-taps=large] .btn,html[data-taps=large] .icon-btn{min-height:42px;min-width:42px}html[data-taps=large] .msg-actions button{padding:8px 9px}}
 </style>
 </head>
 <body>
@@ -1190,7 +1212,8 @@ export async function startBridge(opts = {}) {
           const h = Object.assign({}, r.headers);
           delete h["content-encoding"]; delete h["content-length"];
           delete h["access-control-allow-origin"];
-          res.writeHead(r.statusCode || 502, Object.assign(h, { "Access-Control-Allow-Origin": "*" }));
+          // Expose-Headers lets the page read upstream headers such as Mcp-Session-Id.
+          res.writeHead(r.statusCode || 502, Object.assign(h, { "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "*" }));
           r.pipe(res);            // streams straight through, SSE included
         }
       );
@@ -1822,7 +1845,8 @@ function defaultSkin() {
     name: "Forge", base: "forge", density: "comfortable", motion: "full",
     accent: "#f7bd56", accent2: "#ffdc87", blue: "#73ddff", violet: "#c7a3ff", green: "#62eaa7",
     bg: "#05060b", bg2: "#0b1020", panel: "#111827", text: "#fff7e8", muted: "#b7c1d0",
-    radius: 20, blur: 18, fontScale: 100, lineStrength: 14, maxw: 2100, font: "system", autosave: true
+    radius: 20, blur: 18, fontScale: 100, lineStrength: 14, maxw: 2100, font: "system", autosave: true,
+    buttonStyle: "glass", buttonShape: "soft", wallpaper: "none", texture: "none", textureOpacity: 30, mobileNav: "bar", largeTaps: true
   };
 }
 const FONT_STACKS = {
@@ -1884,6 +1908,9 @@ const DEFAULT_SETTINGS = {
 
   /* Chat conveniences (Open WebUI parity). */
   followUps: true, ttsRate: 1, presets: [], promptLib: [],
+
+  /* Forge 5 / RTBT: MCP servers, the web source policy, the judge panel. */
+  mcpServers: [], webAllowDomains: "", webBlockDomains: "", judgeFanout: 1,
   cacheResponses: true, showThinking: true, soundOnDone: false,
   traceEnabled: true,
 
@@ -2963,20 +2990,27 @@ async function webSearch(query, opts = {}) {
   const span = startSpan("search", engine + ": " + String(query).slice(0, 60));
   RUN.metrics.searches++;
   try {
-    const results = await runSearch(engine, query, n);
-    endSpan(span, { ok: true, count: results.length });
+    const raw = await runSearch(engine, siteScoped(engine, query), n);
+    const results = raw.filter(r => domainAllowed(r.url));
+    endSpan(span, { ok: true, count: results.length, filtered: raw.length - results.length });
     await logEvent("search", engine + " · " + results.length + " result(s)", { level: "info", query: String(query).slice(0, 120) });
     return { ok: true, engine, query, count: results.length, results };
   } catch (e) {
     endSpan(span, { ok: false, error: String(e.message || e) });
     if (engine !== "duckduckgo") {
       try {
-        const results = await runSearch("duckduckgo", query, n);
+        const results = (await runSearch("duckduckgo", siteScoped("duckduckgo", query), n)).filter(r => domainAllowed(r.url));
         return { ok: true, engine: "duckduckgo", fellBackFrom: engine, reason: String(e.message || e).slice(0, 160), query, count: results.length, results };
       } catch {}
     }
     return { ok: false, engine, error: String(e.message || e), results: [] };
   }
+}
+/* With a short allow-list, ask the engine for those sites instead of filtering an unrelated page of results away. */
+function siteScoped(engine, query) {
+  const allow = domainList(state.settings.webAllowDomains);
+  if (!allow.length || allow.length > 6 || !["duckduckgo", "serper", "brave"].includes(engine)) return query;
+  return query + " (" + allow.map(d => "site:" + d).join(" OR ") + ")";
 }
 async function runSearch(engine, query, n) {
   const J = { "Content-Type": "application/json" };
@@ -3084,6 +3118,7 @@ async function fetchUrl(url, maxChars) {
   const lim = clamp(Number(maxChars || state.settings.fetchMaxChars) || 12000, 500, 80000);
   let u; try { u = new URL(url) } catch { return { ok: false, error: "That is not a valid URL." } }
   if (!/^https?:$/.test(u.protocol)) return { ok: false, error: "Only http and https can be fetched." };
+  if (!domainAllowed(url)) return { ok: false, error: "Blocked by the web source policy (Providers → Web). Choose a source on an allowed domain." };
   const span = startSpan("fetch", u.host + u.pathname.slice(0, 40));
   RUN.metrics.fetches++;
   try {
@@ -3601,10 +3636,11 @@ async function runAgentTool(name, args, ctx) {
       const r = await webSearch(args.query, { max_results: args.max_results });
       if (!r.ok) return { ok: false, error: r.error, hint: "Search is unavailable. Answer from what you know and mark it unverified." };
       ctx.searched.push(args.query);
+      recordSources(ctx.swarm, r.results, "search", ctx.role);
       return { ok: true, engine: r.engine, fell_back_from: r.fellBackFrom, count: r.count,
         results: r.results.map(x => ({ title: x.title, url: x.url, snippet: (x.snippet || "").slice(0, 400) })) };
     }
-    case "fetch_url": return await fetchUrl(args.url, args.max_chars);
+    case "fetch_url": { const r = await fetchUrl(args.url, args.max_chars); if (r.ok) recordSources(ctx.swarm, [{ url: args.url, title: r.title }], "fetch", ctx.role); return r }
     case "search_workspace": return await dispatchTool("search_workspace", args, ctx.swarm);
     case "read_workspace_file": return await dispatchTool("read_workspace_file", args, ctx.swarm);
     case "create_artifact": {
@@ -3622,7 +3658,11 @@ async function runAgentTool(name, args, ctx) {
       const bb = (ctx.swarm?.blackboard || []).filter(x => x.agent !== ctx.role);
       return { ok: true, count: bb.length, findings: bb.slice(-(args.limit || 20)).map(x => ({ from: x.agent, finding: x.finding, confidence: x.confidence, source: x.source })) };
     }
-    default: return { ok: false, error: "Unknown tool: " + name };
+    default: {
+      const at = artifactTool(name, args); if (at) return at;
+      if (name.startsWith("mcp__")) return await mcpCallTool(name, args, ctx.label);
+      return { ok: false, error: "Unknown tool: " + name };
+    }
   }
 }
 
@@ -3710,7 +3750,7 @@ async function runAgent(spec, swarm, opts = {}) {
         temperature: spec.temperature ?? R.temp,
         maxTokens: spec.max_tokens || s.agentMaxTokens,
         web: wantsWeb && !toolsSupported,        // native web only when we cannot give it the tool
-        tools: toolsSupported ? AGENT_TOOLS : undefined,
+        tools: toolsSupported ? agentToolset() : undefined,
         stream: true,
         onDelta: (_d, full, kind) => {
           if (kind === "content") {
@@ -4264,8 +4304,8 @@ async function hybridJudge(work, criteria, objective, judgeModel) {
       RUN.metrics.jevEscalations = (RUN.metrics.jevEscalations || 0) + 1;
     }
   }
-  const v = await judgeOne(work, criteria, judgeModel);
-  return { ...v, source: v.unavailable ? "unavailable" : "llm" };
+  const v = await judgePanel(work, criteria, judgeModel);
+  return { ...v, source: v.unavailable ? "unavailable" : v.panel ? "panel" : "llm" };
 }
 
 /* ------------------------------------------------- 4. SWARM LIFECYCLE
@@ -4651,6 +4691,9 @@ function renderProviders() {
       </div>
       <div class="cols4" style="margin-top:12px">
         <label class="check"><input type="checkbox" data-set="webSearch" ${s.webSearch ? "checked" : ""}>Give agents web search by default</label>
+        <div style="grid-column:1/-1"><label>Only use sources from (optional)</label><input data-set="webAllowDomains" value="${esc(s.webAllowDomains || "")}" placeholder="arxiv.org, github.com, developer.mozilla.org"></div>
+        <div style="grid-column:1/-1"><label>Never use sources from</label><input data-set="webBlockDomains" value="${esc(s.webBlockDomains || "")}" placeholder="pinterest.com, content-farm.example"></div>
+        <div class="row" style="grid-column:1/-1;gap:6px;flex-wrap:wrap"><span class="subtle">Source presets:</span>${Object.entries(SOURCE_PRESETS).map(([k, v]) => `<button class="btn tiny" data-action="web-preset" data-preset="${k}">${esc(v.label)}</button>`).join("")}</div>
         <label class="check"><input type="checkbox" data-set="agentTools" ${s.agentTools ? "checked" : ""}>Agents may call tools</label>
         <label class="check"><input type="checkbox" data-set="blackboard" ${s.blackboard ? "checked" : ""}>Shared findings blackboard</label>
         <label class="check"><input type="checkbox" data-set="approveTools" ${s.approveTools ? "checked" : ""}>Ask before outbound tool calls</label>
@@ -4668,6 +4711,7 @@ function renderProviders() {
         <div><label>Timeout per call (s)</label><input type="number" min="15" max="900" value="${s.timeoutSec}" data-set-num="timeoutSec"></div>
         <div><label>Budget ceiling ($)</label><input type="number" min="0" step="0.25" value="${s.budgetUsd}" data-set-num="budgetUsd"></div>
         <div><label>Judge threshold</label><input type="number" min="0" max="100" value="${s.judgeThreshold}" data-set-num="judgeThreshold"></div>
+        <div><label>Judges per verdict</label><select data-set="judgeFanout">${[1, 2, 3, 5].map(n => `<option value="${n}" ${Number(s.judgeFanout || 1) === n ? "selected" : ""}>${n === 1 ? "1 (single judge)" : n + " — median decides"}</option>`).join("")}</select></div>
         <div><label>Temperature · ${s.temperature}</label><input type="range" min="0" max="2" step="0.05" value="${s.temperature}" data-set-num="temperature"></div>
         <div><label>Top-p · ${s.top_p}</label><input type="range" min="0.1" max="1" step="0.01" value="${s.top_p}" data-set-num="top_p"></div>
         <div><label>Reasoning effort</label><select data-set="reasoning_effort">${["none", "low", "medium", "high"].map(x => `<option ${s.reasoning_effort === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
@@ -5104,6 +5148,7 @@ function renderSimple() {
     </main>
 
     ${busy || (sw && sw.agents.length) ? renderWorkingStrip(sw, busy) : ""}
+    ${state.approvalQueue.length ? `<div style="padding:0 16px">${renderApprovalBar()}</div>` : ""}
 
     <footer class="simple-composer">
       <div class="simple-input">
@@ -5879,12 +5924,13 @@ async function dispatchTool(name, args, swarm) {
 
     case "web_search": {
       const r = await webSearch(args.query, { max_results: args.max_results });
+      if (r.ok) recordSources(swarm, r.results, "search", "orchestrator");
       return r.ok
         ? { ok: true, engine: r.engine, count: r.count, results: r.results.map(x => ({ title: x.title, url: x.url, snippet: (x.snippet || "").slice(0, 400) })) }
         : { ok: false, error: r.error };
     }
 
-    case "fetch_url": return await fetchUrl(args.url, args.max_chars);
+    case "fetch_url": { const r = await fetchUrl(args.url, args.max_chars); if (r.ok) recordSources(swarm, [{ url: args.url, title: r.title }], "fetch", "orchestrator"); return r }
 
     case "list_skills": {
       const list = state.skills || [];
@@ -5912,8 +5958,11 @@ async function dispatchTool(name, args, swarm) {
       return { ok: true, note: "Saved. This will be in your system prompt in future sessions." };
     }
 
-    default:
+    default: {
+      const at = artifactTool(name, args); if (at) return at;
+      if (name.startsWith("mcp__")) return await mcpCallTool(name, args, "The orchestrator");
       return { ok: false, error: "Unknown tool: " + name };
+    }
   }
 }
 
@@ -5980,7 +6029,7 @@ async function runOrchestrator(userText, attachments = []) {
       assistant.streaming = true;
       const res = await callOR(messages, {
         model: s.orchestratorModel,
-        tools: s.useTools && modelSupports(s.orchestratorModel, "tools") ? TOOL_SCHEMAS : undefined,
+        tools: s.useTools && modelSupports(s.orchestratorModel, "tools") ? orchestratorTools() : undefined,
         stream: true,
         maxTokens: s.max_tokens,
         onDelta: (_d, full, kind) => {
@@ -6443,6 +6492,7 @@ function dockMount() {
         <select data-role="versions" title="Version"></select>
         <button class="btn tiny" data-dock="copy" title="Copy source">Copy</button>
         <button class="btn tiny" data-dock="download" title="Download">⤓</button>
+        <button class="btn tiny" data-dock="snapshot" title="Save a PNG snapshot">PNG</button>
         <button class="btn tiny" data-dock="reload" title="Restart the preview">↻</button>
         <button class="btn tiny" data-dock="full" title="Full screen">⤢</button>
         <button class="btn tiny" data-dock="close" title="Close">✕</button>
@@ -6513,6 +6563,7 @@ async function dockAction(a) {
     case "reload": LIVE.lastSrc = ""; LIVE.error = null; return dockSchedule(true);
     case "copy": return e ? copyText(content) : null;
     case "download": return e ? download(e.name, content, "text/plain") : null;
+    case "snapshot": return snapshotArtifact().catch(() => {});
     case "fix": {
       if (!e || !LIVE.error || RUN.active) return;
       const err = LIVE.error; LIVE.error = null; dockSchedule(true);
@@ -6534,12 +6585,15 @@ function dockUpdate(force) {
   const { list, e, content, version } = dockCurrent();
   const writing = list.filter(x => x.status === "writing");
   const narrow = window.innerWidth < 900;
-  document.body.classList.toggle("dock-open", LIVE.open && !narrow);
-  d.root.hidden = !LIVE.open;
-  d.root.classList.toggle("full", LIVE.full || (LIVE.open && narrow));
-  d.pill.hidden = LIVE.open || !list.length;
+  // Open but empty (a chat with no artifacts yet) takes no space; it reappears
+  // the moment something is written.
+  const shown = LIVE.open && list.length > 0;
+  document.body.classList.toggle("dock-open", shown && !narrow);
+  d.root.hidden = !shown;
+  d.root.classList.toggle("full", LIVE.full || (shown && narrow));
+  d.pill.hidden = shown || !list.length;
   if (!d.pill.hidden) d.pill.innerHTML = writing.length ? `<span class="dot busy"></span> Writing ${esc(writing[0].name)}` : `◆ Artifacts · ${list.length}`;
-  if (!LIVE.open) return;
+  if (!shown) return;
   if (e) LIVE.active = e.name;
 
   // Tabs, one per artifact in this conversation.
@@ -7125,6 +7179,333 @@ function ratingBoard() {
   }).sort((a, b) => b.score - a.score);
 }
 
+/* ============================================================================
+   FORGE EXTRAS — what Agent-OS Forge 5 and RTBT Forge had that this did not:
+   MCP tool servers, a web source policy with an evidence ledger, a judge
+   panel (several judges, median score), tools for agents to read and show
+   artifacts, PNG snapshots, a request preview and a diagnostics panel.
+   ========================================================================== */
+
+/* ---- MCP (Model Context Protocol) over streamable HTTP ----
+   Each server's tools join the orchestrator's and every agent's toolset as
+   mcp__<server>__<tool>. Calls go direct when the server allows browser
+   requests, otherwise through the bridge (loopback servers always work that
+   way; a remote host has to be allow-listed on the bridge). */
+const MCP = { sessions: new Map(), tools: new Map(), status: new Map(), seq: 0 };
+const MCP_VERSION = "2025-06-18";
+function mcpServers() { return (state.settings.mcpServers || []).filter(s => s && s.url) }
+function mcpSafeName(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24) || "server" }
+async function mcpFetch(server, body, sessionId) {
+  const headers = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" };
+  if (server.token) headers.Authorization = "Bearer " + server.token;
+  if (sessionId) { headers["Mcp-Session-Id"] = sessionId; headers["MCP-Protocol-Version"] = MCP_VERSION }
+  const init = { method: "POST", headers, body: JSON.stringify(body) };
+  let res;
+  const loopback = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/i.test(server.url);
+  const ownOrigin = (() => { try { return new URL(server.url).origin === location.origin } catch { return false } })();
+  if (ownOrigin || (!loopback && server.direct !== false)) {
+    try { res = await fetch(server.url, init) } catch (e) { if (!state.bridge.connected) throw e }
+  }
+  if (!res) {
+    if (!state.bridge.connected) throw new Error("This MCP server needs the bridge (browsers cannot call it directly), and the bridge is not connected.");
+    res = await bridgeFetch(server.url, init);
+  }
+  if (res.status === 403) {
+    const t = await res.text().catch(() => "");
+    if (/allow-listed/.test(t)) throw new Error("The bridge refuses this host. Start the bridge with --allow-host " + new URL(server.url).hostname + ".");
+    throw new Error("MCP server refused the request (403).");
+  }
+  return res;
+}
+/* A response is either JSON or an SSE stream whose events carry JSON-RPC messages. */
+async function mcpReadResponse(res, id) {
+  const type = res.headers.get("content-type") || "";
+  if (res.status === 202 || res.status === 204) return null;
+  if (!res.ok) throw new Error("MCP HTTP " + res.status + ": " + (await res.text().catch(() => "")).slice(0, 200));
+  if (type.includes("text/event-stream")) {
+    let found = null;
+    await readSSE(res, j => { if (j && (j.id === id || (id == null && (j.result || j.error)))) found = j });
+    if (!found) throw new Error("MCP stream ended without a response.");
+    return found;
+  }
+  return await res.json();
+}
+async function mcpRequest(server, method, params, retried) {
+  const key = server.id;
+  let sess = MCP.sessions.get(key);
+  if (!sess && method !== "initialize") sess = await mcpInit(server);
+  const id = ++MCP.seq;
+  const res = await mcpFetch(server, { jsonrpc: "2.0", id, method, params: params || {} }, sess?.sessionId);
+  if (res.status === 404 && sess?.sessionId && !retried) { MCP.sessions.delete(key); return mcpRequest(server, method, params, true) }   // session expired: one fresh try
+  const msg = await mcpReadResponse(res, id);
+  if (msg?.error) throw new Error("MCP " + method + ": " + (msg.error.message || JSON.stringify(msg.error)));
+  return msg?.result;
+}
+async function mcpInit(server) {
+  const id = ++MCP.seq;
+  const res = await mcpFetch(server, { jsonrpc: "2.0", id, method: "initialize", params: { protocolVersion: MCP_VERSION, capabilities: {}, clientInfo: { name: APP, version: APP_VERSION } } });
+  const msg = await mcpReadResponse(res, id);
+  if (msg?.error) throw new Error("MCP initialize: " + (msg.error.message || "failed"));
+  const sess = { sessionId: res.headers.get("mcp-session-id") || null, info: msg?.result?.serverInfo || null, protocol: msg?.result?.protocolVersion };
+  MCP.sessions.set(server.id, sess);
+  await mcpFetch(server, { jsonrpc: "2.0", method: "notifications/initialized" }, sess.sessionId).catch(() => {});
+  return sess;
+}
+async function mcpConnect(server, quiet) {
+  MCP.status.set(server.id, { state: "connecting" }); if (!quiet) scheduleRender(0);
+  try {
+    MCP.sessions.delete(server.id);
+    const sess = await mcpInit(server);
+    const out = [];
+    let cursor;
+    do {
+      const r = await mcpRequest(server, "tools/list", cursor ? { cursor } : {});
+      out.push(...(r?.tools || []));
+      cursor = r?.nextCursor;
+    } while (cursor && out.length < 500);
+    MCP.tools.set(server.id, out);
+    MCP.status.set(server.id, { state: "ok", tools: out.length, info: sess.info, at: ts() });
+    if (!quiet) toast((server.name || "MCP server") + ": " + out.length + " tool(s).");
+    await logEvent("mcp", "Connected " + (server.name || server.url), { level: "info", tools: out.length });
+  } catch (e) {
+    MCP.tools.delete(server.id);
+    MCP.status.set(server.id, { state: "error", error: String(e.message || e) });
+    if (!quiet) toast("MCP: " + String(e.message || e).slice(0, 120));
+  }
+  scheduleRender(0);
+}
+/* Tool schemas for the model, name-spaced per server. */
+function mcpToolSchemas() {
+  const out = [];
+  for (const srv of mcpServers()) {
+    if (srv.enabled === false) continue;
+    for (const t of MCP.tools.get(srv.id) || []) {
+      out.push({ type: "function", function: {
+        name: ("mcp__" + mcpSafeName(srv.name || srv.id) + "__" + String(t.name).replace(/[^A-Za-z0-9_-]/g, "_")).slice(0, 64),
+        description: ((t.description || t.title || t.name) + " (MCP tool from " + (srv.name || srv.url) + ")").slice(0, 1000),
+        parameters: t.inputSchema && typeof t.inputSchema === "object" ? t.inputSchema : { type: "object", properties: {} }
+      } });
+    }
+  }
+  return out;
+}
+function mcpResolve(fname) {
+  const m = String(fname).match(/^mcp__([a-z0-9_]+)__(.+)$/);
+  if (!m) return null;
+  for (const srv of mcpServers()) {
+    if (mcpSafeName(srv.name || srv.id) !== m[1]) continue;
+    const t = (MCP.tools.get(srv.id) || []).find(x => String(x.name).replace(/[^A-Za-z0-9_-]/g, "_") === m[2]);
+    if (t) return { srv, tool: t.name };
+  }
+  return null;
+}
+async function mcpCallTool(fname, args, who) {
+  const hit = mcpResolve(fname);
+  if (!hit) return { ok: false, error: "No connected MCP tool named " + fname + "." };
+  if (hit.srv.enabled === false) return { ok: false, error: "That MCP server is switched off." };
+  // MCP tools can have side effects in other systems: ask, unless this server is marked trusted.
+  if (!hit.srv.trusted) {
+    const ap = await new Promise(resolve => { state.approvalQueue.push({ id: uid("apr"), tool: fname, args, agent: (who || "The orchestrator") + " · MCP " + (hit.srv.name || ""), at: ts(), resolve }); scheduleRender(0) });
+    if (!ap.approved) return { ok: false, refused: true, error: "The user declined this tool call. Continue without it and say so." };
+  }
+  try {
+    const r = await mcpRequest(hit.srv, "tools/call", { name: hit.tool, arguments: args || {} });
+    const text = (r?.content || []).map(c => c.type === "text" ? c.text : c.type === "resource" ? (c.resource?.text || c.resource?.uri || "") : "[" + c.type + "]").join("\n");
+    return { ok: !r?.isError, server: hit.srv.name, tool: hit.tool, content: text.slice(0, 60000), structured: r?.structuredContent };
+  } catch (e) { return { ok: false, error: String(e.message || e) } }
+}
+function orchestratorTools() { return [...TOOL_SCHEMAS, ...ARTIFACT_TOOL_SCHEMAS, ...mcpToolSchemas()] }
+function agentToolset() { return [...AGENT_TOOLS, ...ARTIFACT_TOOL_SCHEMAS, ...mcpToolSchemas()] }
+
+/* ---- artifacts as something agents can read and show ---- */
+const ARTIFACT_TOOL_SCHEMAS = [
+  { type: "function", function: {
+      name: "read_artifact",
+      description: "Read the latest version of an artifact (an app, game, page, document or file) by name, to revise it. Re-emit the whole file with the same name to save the next version.",
+      parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } } },
+  { type: "function", function: {
+      name: "preview_artifact",
+      description: "Open an artifact in the user's Artifact panel so they can see or play it now.",
+      parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } } }
+];
+function artifactTool(name, args) {
+  if (name === "read_artifact") {
+    const a = state.artifacts.find(x => x.name === args.name) || state.artifacts.find(x => x.name.toLowerCase().includes(String(args.name || "").toLowerCase()));
+    if (!a) return { ok: false, error: "No artifact called " + args.name + ". Known: " + [...new Set(state.artifacts.map(x => x.name))].slice(0, 30).join(", ") };
+    return { ok: true, name: a.name, version: a.version, language: a.language, content: a.content.slice(0, 120000) };
+  }
+  if (name === "preview_artifact") {
+    const a = state.artifacts.find(x => x.name === args.name);
+    if (!a) return { ok: false, error: "No artifact called " + args.name + "." };
+    LIVE.active = a.name; LIVE.version = null; LIVE.follow = false; LIVE.lastSrc = "";
+    dockOpen(true);
+    return { ok: true, shown: a.name, version: a.version };
+  }
+  return null;
+}
+
+/* ---- web source policy + evidence ledger ---- */
+function domainList(v) { return String(v || "").split(/[\s,]+/).map(x => x.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^\*\./, "")).filter(Boolean) }
+const domainMatch = (host, d) => { host = String(host || "").toLowerCase(); return host === d || host.endsWith("." + d) };
+function domainAllowed(url) {
+  let h; try { h = new URL(url).hostname } catch { return true }
+  const allow = domainList(state.settings.webAllowDomains), block = domainList(state.settings.webBlockDomains);
+  if (block.some(d => domainMatch(h, d))) return false;
+  return !allow.length || allow.some(d => domainMatch(h, d));
+}
+const SOURCE_PRESETS = {
+  labs: { label: "Labs & docs", allow: "openai.com, anthropic.com, deepmind.google, ai.google.dev, ai.meta.com, mistral.ai, huggingface.co, arxiv.org, developer.mozilla.org, docs.python.org, nodejs.org" },
+  code: { label: "GitHub & code", allow: "github.com, gitlab.com, stackoverflow.com, npmjs.com, pypi.org, docs.rs, pkg.go.dev, developer.mozilla.org" },
+  community: { label: "Community", allow: "reddit.com, news.ycombinator.com, x.com, lobste.rs, stackoverflow.com, dev.to" },
+  broad: { label: "Broad (no filter)", allow: "" }
+};
+function recordSources(sw, items, via, agent) {
+  if (!sw) return;
+  sw.sources = sw.sources || [];
+  for (const it of items || []) {
+    if (!it?.url || sw.sources.some(s => s.url === it.url && s.via === via)) continue;
+    sw.sources.push({ url: it.url, title: String(it.title || "").slice(0, 160), via, agent: agent || "orchestrator", at: ts() });
+  }
+}
+function renderEvidenceLedger(sw) {
+  const src = sw?.sources || [];
+  if (!src.length) return "";
+  const final = String(sw.finalText || "");
+  const byDomain = {};
+  for (const s of src) { let h = ""; try { h = new URL(s.url).hostname.replace(/^www\./, "") } catch {} (byDomain[h] ||= { domain: h, searched: 0, read: 0, cited: 0 }); byDomain[h][s.via === "fetch" ? "read" : "searched"]++; if (final.includes(s.url)) byDomain[h].cited++ }
+  const read = src.filter(s => s.via === "fetch");
+  return `<div class="panel">
+    <div class="panel-title"><div><h3>Evidence ledger</h3><p>Every source this run searched up or actually read, and whether the final answer cites it.</p></div>
+      <span class="pill info">${src.length} source${src.length === 1 ? "" : "s"} · ${read.length} read</span></div>
+    <table class="data"><thead><tr><th>Domain</th><th>Found</th><th>Read</th><th>Cited</th></tr></thead><tbody>
+      ${Object.values(byDomain).sort((a, b) => (b.read + b.searched) - (a.read + a.searched)).slice(0, 14).map(d => `<tr><td class="mono">${esc(d.domain)}</td><td>${d.searched}</td><td>${d.read}</td><td>${d.cited ? `<span class="pill ok">${d.cited}</span>` : "—"}</td></tr>`).join("")}
+    </tbody></table>
+    ${read.length ? `<details style="margin-top:10px"><summary class="subtle" style="cursor:pointer">Pages read (${read.length})</summary><div class="list" style="margin-top:8px">${read.slice(0, 60).map(s => `<div class="rowitem"><span class="pill">${esc(s.agent)}</span><a href="${esc(s.url)}" target="_blank" rel="noopener" style="overflow-wrap:anywhere">${esc(s.title || s.url)}</a>${final.includes(s.url) ? `<span class="pill ok">cited</span>` : ""}</div>`).join("")}</div></details>` : ""}
+  </div>`;
+}
+
+/* ---- judge panel: several judges, the median decides ---- */
+async function judgePanel(work, criteria, judgeModel) {
+  const n = clamp(Number(state.settings.judgeFanout) || 1, 1, 5);
+  if (n === 1) return judgeOne(work, criteria, judgeModel);
+  const pool = [judgeModel || state.settings.judgeModel, state.settings.verifierModel, state.settings.defaultAgentModel, state.settings.orchestratorModel]
+    .concat(configuredProviders().map(p => providerCfg(p).fallbackModels?.[0] ? makeRef(p, providerCfg(p).fallbackModels[0]) : null))
+    .filter(Boolean);
+  const refs = [...new Set(pool)].slice(0, n);
+  const votes = await Promise.all(refs.map(r => judgeOne(work, criteria, r).then(v => ({ ...v, model: r }))));
+  const live = votes.filter(v => !v.unavailable);
+  if (!live.length) return { ...votes[0], panel: votes.map(v => ({ model: v.model, unavailable: true })) };
+  const scores = live.map(v => v.score).sort((a, b) => a - b);
+  const median = scores.length % 2 ? scores[(scores.length - 1) / 2] : Math.round((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2);
+  const yes = live.filter(v => v.accepted).length;
+  const best = live.slice().sort((a, b) => Math.abs(a.score - median) - Math.abs(b.score - median))[0];
+  return {
+    ...best, score: median,
+    accepted: yes * 2 > live.length && median >= Number(state.settings.judgeThreshold),
+    reason: `Panel of ${live.length}: median ${median}, ${yes}/${live.length} admit. ` + (best.reason || ""),
+    defects: [...new Set(live.flatMap(v => v.defects || []))],
+    panel: votes.map(v => ({ model: v.model, score: v.score, accepted: v.accepted, unavailable: !!v.unavailable }))
+  };
+}
+
+/* ---- request preview (a copy-paste cURL of what would be sent) and diagnostics ---- */
+function requestPreview(refStr) {
+  const r = parseRef(refStr || state.settings.orchestratorModel);
+  const resolved = r.provider === "preset" ? parseRef(presetById(r.model)?.base || "") : r;
+  const p = providerCfg(resolved.provider);
+  const msgs = [{ role: "system", content: "…orchestrator system prompt (" + orchestratorSystem().length + " chars)…" }, { role: "user", content: "Hello" }];
+  const body = p.wire === "anthropic" ? buildAnthropicBody(resolved.provider, resolved.model, msgs, { stream: true }) : buildOpenAIBody(resolved.provider, resolved.model, msgs, { stream: true });
+  const url = p.chat?.startsWith("http") ? p.chat : providerBase(resolved.provider) + (p.chat || "/chat/completions");
+  const headers = authHeaders(resolved.provider);
+  for (const k of Object.keys(headers)) if (/authorization|x-api-key/i.test(k)) headers[k] = headers[k].replace(/(Bearer\s+)?(.{4}).+(.{4})$/, (m, b, a, z) => (b || "") + a + "…" + z);
+  const curl = `curl ${needsBridge(resolved.provider) ? "# via the bridge — this host refuses browser requests\\\n  " : ""}${JSON.stringify(url)} \\\n` + Object.entries(headers).map(([k, v]) => `  -H ${JSON.stringify(k + ": " + v)} \\\n`).join("") + `  -d '${JSON.stringify(body).replace(/'/g, "'\\''")}'`;
+  return { url, provider: resolved.provider, model: resolved.model, body, curl };
+}
+async function diagnostics() {
+  const out = [];
+  const add = (k, v, ok = true) => out.push({ k, v: String(v), ok });
+  add("App", APP + " " + APP_VERSION + " (" + BUILD + ")" + (NATIVE ? " · Mac app" : ""));
+  add("Origin", location.origin || location.protocol, /^https:|^http:\/\/(127\.0\.0\.1|localhost)/.test(location.origin));
+  add("Secure context", window.isSecureContext, window.isSecureContext);
+  add("Storage", DB.fallback ? "localStorage fallback (IndexedDB unavailable)" : "IndexedDB", !DB.fallback);
+  try { const e = await navigator.storage?.estimate?.(); if (e) add("Storage used", (e.usage / 1048576).toFixed(1) + " MB of " + (e.quota / 1048576).toFixed(0) + " MB") } catch {}
+  add("Persistent storage", await navigator.storage?.persisted?.().catch(() => false) ? "granted" : "not granted (the browser may evict data under pressure)");
+  add("Service worker", navigator.serviceWorker?.controller ? "active (installable, works offline)" : NATIVE ? "not needed in the Mac app" : "not active");
+  add("Online", navigator.onLine, navigator.onLine);
+  add("Bridge", state.bridge.connected ? "connected · v" + state.bridge.version + (state.bridge.native ? " (built in)" : "") : "not connected", state.bridge.connected || !NATIVE);
+  add("Providers ready", configuredProviders().join(", ") || "none", configuredProviders().length > 0);
+  add("Free mode", state.settings.freeMode ? "on" : "off");
+  add("MCP servers", mcpServers().length ? mcpServers().map(s => (s.name || s.url) + ": " + (MCP.status.get(s.id)?.state || "not connected")).join(" · ") : "none");
+  add("CPU cores", navigator.hardwareConcurrency || "?");
+  if (navigator.deviceMemory) add("Device memory", navigator.deviceMemory + " GB");
+  add("Speech", ("speechSynthesis" in window ? "read-aloud ✓" : "read-aloud ✗") + " · " + ((window.SpeechRecognition || window.webkitSpeechRecognition) ? "dictation ✓" : "dictation ✗"));
+  add("User agent", navigator.userAgent);
+  return out;
+}
+function renderToolsView() {
+  const servers = state.settings.mcpServers || [];
+  const pv = state.reqPreview;
+  const tools = mcpToolSchemas();
+  return `<div class="grid">
+    ${hero("Tools &amp; MCP", "Connect Model Context Protocol servers and their tools join the swarm: the orchestrator and every agent can call them. Also here: the exact request a model call sends, and a health check of this browser.", `<button class="btn" data-action="diag-run">Run diagnostics</button><button class="btn" data-action="req-preview">Preview a request</button>`)}
+    <div class="panel">
+      <div class="panel-title"><div><h3>MCP servers</h3><p>Streamable HTTP servers (the current MCP transport). A server on this machine is reached through the bridge; a remote one directly if it allows browsers, otherwise through a bridge started with <span class="mono">--allow-host</span>.</p></div></div>
+      ${servers.length ? `<table class="data"><thead><tr><th>Server</th><th>Status</th><th>Tools</th><th></th></tr></thead><tbody>
+        ${servers.map(x => { const st = MCP.status.get(x.id) || { state: "not connected" }; return `<tr>
+          <td><b>${esc(x.name || "server")}</b><div class="subtle mono" style="overflow-wrap:anywhere">${esc(x.url)}</div></td>
+          <td><span class="pill ${st.state === "ok" ? "ok" : st.state === "error" ? "bad" : ""}">${esc(st.state === "ok" ? "connected" : st.state)}</span>${st.error ? `<div class="subtle" style="max-width:320px">${esc(st.error)}</div>` : ""}</td>
+          <td class="mono subtle" style="max-width:360px;overflow-wrap:anywhere">${esc((MCP.tools.get(x.id) || []).map(t => t.name).join(", ") || "—")}</td>
+          <td class="row" style="gap:6px"><button class="btn tiny" data-action="mcp-connect" data-id="${esc(x.id)}">${st.state === "ok" ? "Reconnect" : "Connect"}</button>
+            <label class="check" style="width:auto;margin:0"><input type="checkbox" data-mcp-toggle="${esc(x.id)}" ${x.enabled !== false ? "checked" : ""}>on</label>
+            <label class="check" style="width:auto;margin:0" title="Trusted servers run tool calls without asking you first"><input type="checkbox" data-mcp-trust="${esc(x.id)}" ${x.trusted ? "checked" : ""}>trusted</label>
+            <button class="btn tiny" data-action="mcp-del" data-id="${esc(x.id)}">Remove</button></td></tr>` }).join("")}
+      </tbody></table>` : `<div class="empty">No MCP servers yet.</div>`}
+      <div class="cols2" style="margin-top:14px">
+        <div><label>Name</label><input id="mcpName" placeholder="github"></div>
+        <div><label>URL</label><input id="mcpUrl" placeholder="http://127.0.0.1:3000/mcp"></div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:10px"><div style="flex:1"><label>Bearer token (optional)</label><input id="mcpToken" type="password" autocomplete="off"></div>
+        <button class="btn primary" data-action="mcp-add" style="align-self:flex-end">Add &amp; connect</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><div><h3>Tool scratchpad</h3><p>Call any connected tool by hand, the way an agent would.</p></div></div>
+      <div class="cols2"><div><label>Tool</label><select id="mcpScratchTool">${tools.map(t => `<option>${esc(t.function.name)}</option>`).join("") || "<option value=''>connect a server first</option>"}</select></div>
+        <div><label>Arguments (JSON)</label><input id="mcpScratchArgs" value="{}" class="mono"></div></div>
+      <button class="btn" data-action="mcp-scratch" style="margin-top:10px">Run tool</button>
+      ${state.mcpScratch ? `<pre class="mono" style="margin-top:10px;white-space:pre-wrap;max-height:320px;overflow:auto">${esc(JSON.stringify(state.mcpScratch, null, 2))}</pre>` : ""}
+    </div>
+    ${pv ? `<div class="panel"><div class="panel-title"><div><h3>Request preview</h3><p>What a call to <span class="mono">${esc(pv.provider + ":" + pv.model)}</span> sends. Keys are shortened.</p></div><button class="btn small" data-action="req-copy">Copy cURL</button></div><pre class="mono" style="white-space:pre-wrap;max-height:360px;overflow:auto">${esc(pv.curl)}</pre></div>` : ""}
+    ${state.diag ? `<div class="panel"><div class="panel-title"><div><h3>Diagnostics</h3></div><button class="btn small" data-action="diag-copy">Copy</button></div><table class="data"><tbody>${state.diag.map(d => `<tr><td>${esc(d.k)}</td><td class="${d.ok ? "" : "bad-text"}" style="overflow-wrap:anywhere">${d.ok ? "" : "⚠ "}${esc(d.v)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  </div>`;
+}
+document.addEventListener("change", async e => {
+  const id = e.target?.dataset?.mcpToggle || e.target?.dataset?.mcpTrust;
+  if (!id) return;
+  const key = e.target.dataset.mcpToggle ? "enabled" : "trusted";
+  if (key === "trusted" && e.target.checked && !confirm("Let this server's tools run without asking you each time? Only do this for servers you control.")) { e.target.checked = false; return }
+  state.settings.mcpServers = (state.settings.mcpServers || []).map(x => x.id === id ? { ...x, [key]: e.target.checked } : x);
+  await saveSettings(); render();
+});
+
+/* ---- PNG snapshot of the current artifact (static render: no scripts run) ---- */
+async function snapshotArtifact() {
+  const { e, content } = dockCurrent();
+  if (!e) return toast("Nothing to snapshot.");
+  const W = 1280, H = 800;
+  let html = artifactSrcdoc(e.kind, content, e.name).replace(/<script[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/^[\s\S]*?<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
+  const styles = (artifactSrcdoc(e.kind, content, e.name).match(/<style[\s\S]*?<\/style>/gi) || []).join("");
+  const xhtml = new XMLSerializer().serializeToString(new DOMParser().parseFromString(`<div xmlns="http://www.w3.org/1999/xhtml" style="width:${W}px;height:${H}px;overflow:hidden;background:#fff">${styles}${html}</div>`, "text/html").body.firstChild);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+  const img = new Image();
+  const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("render failed")); img.src = url }).catch(err => { toast("Snapshot failed: " + err.message); throw err });
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  c.getContext("2d").drawImage(img, 0, 0);
+  c.toBlob(b => { if (!b) return toast("Snapshot failed."); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = e.name.replace(/\.[^.]+$/, "") + ".png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }, "image/png");
+  toast("Snapshot saved. Canvas and script-drawn content is not captured — it is a static render.");
+}
+
 /* ------------------------------------------------------------- markdown
    Deliberately small. Fences first (so their contents are never touched by
    inline rules), then tables, lists, headings, and inline marks. Everything
@@ -7322,6 +7703,7 @@ const VIEWS = [
   { id: "runs", glyph: "↺", label: "History", count: () => state.swarms.length + state.runs.length },
   { id: "skills", glyph: "✦", label: "Skills", count: () => (state.skills || []).filter(s => s.enabled).length || null },
   { id: "trace", glyph: "⧉", label: "Trace", count: () => RUN.spans.length || null },
+  { id: "tools", glyph: "⚒", label: "Tools & MCP", count: () => mcpServers().length || null },
   { id: "library", glyph: "❖", label: "Library", count: () => (state.settings.presets || []).length || null },
   { id: "free", glyph: "∞", label: "Free AI", count: () => freeCandidates().length || null },
   { id: "providers", glyph: "⬡", label: "Providers & Keys", count: () => configuredProviders().length || null },
@@ -7446,6 +7828,7 @@ function renderView() {
     case "jev": return renderJev();
     case "free": return renderFree();
     case "library": return renderLibrary();
+    case "tools": return renderToolsView();
     case "tasks": return renderTasks();
     case "memory": return renderMemory();
     case "sandbox": return renderSandbox();
@@ -7662,6 +8045,7 @@ function renderSwarmView() {
     </div>
 
     ${sw.dod ? `<div class="panel">${renderDoD(sw.dod, sw.dodReport, true)}</div>` : ""}
+    ${renderEvidenceLedger(sw)}
 
     <div class="panel">
       <div class="panel-title"><div><h3>Agents</h3><p>Every model the orchestrator woke up, with its full brief and full output. Click one to expand.</p></div>
@@ -8041,7 +8425,15 @@ function renderStudio() {
           <div><label>Glass blur · ${k.blur}px</label><input type="range" min="0" max="34" value="${k.blur}" data-skin-num="blur"></div>
           <div><label>Font scale · ${k.fontScale}%</label><input type="range" min="85" max="124" value="${k.fontScale}" data-skin-num="fontScale"></div>
           <div><label>Border strength · ${k.lineStrength}%</label><input type="range" min="4" max="44" value="${k.lineStrength}" data-skin-num="lineStrength"></div>
+          <div><label>Buttons</label><select data-skin-set="buttonStyle">${["glass", "solid", "outline", "neon", "minimal"].map(d => `<option ${k.buttonStyle === d ? "selected" : ""}>${d}</option>`).join("")}</select></div>
+          <div><label>Button shape</label><select data-skin-set="buttonShape">${["soft", "pill", "sharp", "square"].map(d => `<option ${k.buttonShape === d ? "selected" : ""}>${d}</option>`).join("")}</select></div>
+          <div><label>Wallpaper</label><select data-skin-set="wallpaper">${["none", "aurora", "radar", "paper", "terminal", "flat"].map(d => `<option ${k.wallpaper === d ? "selected" : ""}>${d}</option>`).join("")}</select></div>
+          <div><label>Texture</label><select data-skin-set="texture">${["none", "grid", "dots", "scanlines"].map(d => `<option ${k.texture === d ? "selected" : ""}>${d}</option>`).join("")}</select></div>
+          <div><label>Texture strength · ${k.textureOpacity ?? 30}%</label><input type="range" min="0" max="80" value="${k.textureOpacity ?? 30}" data-skin-num="textureOpacity"></div>
+          <div><label>Phone navigation bar</label><select data-skin-set="mobileNav">${["bar", "compact", "hidden"].map(d => `<option ${k.mobileNav === d ? "selected" : ""}>${d}</option>`).join("")}</select></div>
         </div>
+        <label class="check" style="margin-top:14px"><input type="checkbox" data-skin-set="largeTaps" ${k.largeTaps !== false ? "checked" : ""}>Large tap targets on touch screens</label>
+        <button class="btn small" data-action="skin-css" style="margin-top:10px">Copy CSS tokens</button>
         <label class="check" style="margin-top:14px"><input type="checkbox" data-skin-set="autosave" ${k.autosave ? "checked" : ""}>Save the design automatically</label>
         <hr class="hr">
         <h3 style="font-size:13px;margin:0 0 10px">Preview</h3>
@@ -8096,6 +8488,10 @@ function applySkin(k, save = true) {
   state.skin = { ...defaultSkin(), ...k };
   const s = state.skin, d = document.documentElement, st = d.style;
   d.dataset.theme = s.base; d.dataset.density = s.density; d.dataset.motion = s.motion;
+  d.dataset.buttons = s.buttonStyle || "glass"; d.dataset.shape = s.buttonShape || "soft";
+  d.dataset.wallpaper = s.wallpaper || "none"; d.dataset.texture = s.texture || "none";
+  d.dataset.mobilenav = s.mobileNav || "bar"; d.dataset.taps = s.largeTaps === false ? "normal" : "large";
+  st.setProperty("--texture-op", String((Number(s.textureOpacity) || 0) / 100));
   const dark = luma(s.bg) < .5;
   const set = (key, val) => st.setProperty(key, val);
   set("--bg", s.bg); set("--bg2", s.bg2);
@@ -8720,6 +9116,31 @@ async function doAction(action, el) {
     case "copy-bridge": return copyText(bridgeSource());
     case "copy-bridge-cmd": return copyText("node swarm-bridge.mjs --allow-cli");
     case "chats-toggle": state.chatsOpen = !state.chatsOpen; return render();
+    case "mcp-add": {
+      const url = ($("#mcpUrl")?.value || "").trim(), name = ($("#mcpName")?.value || "").trim() || "server";
+      try { new URL(url) } catch { return toast("That URL is not valid.") }
+      const srv = { id: uid("mcp"), name: mcpSafeName(name), url, token: $("#mcpToken")?.value || "", enabled: true, trusted: false };
+      state.settings.mcpServers = [...(state.settings.mcpServers || []), srv];
+      await saveSettings(); render(); await mcpConnect(srv); return;
+    }
+    case "mcp-connect": { const srv = mcpServers().find(x => x.id === el.dataset.id); if (srv) await mcpConnect(srv); return }
+    case "mcp-del": {
+      state.settings.mcpServers = (state.settings.mcpServers || []).filter(x => x.id !== el.dataset.id);
+      MCP.tools.delete(el.dataset.id); MCP.sessions.delete(el.dataset.id); MCP.status.delete(el.dataset.id);
+      await saveSettings(); return render();
+    }
+    case "mcp-scratch": {
+      let args = {}; try { args = JSON.parse($("#mcpScratchArgs")?.value || "{}") } catch { return toast("Arguments must be JSON.") }
+      const name = $("#mcpScratchTool")?.value; if (!name) return;
+      state.mcpScratch = { pending: true }; render();
+      state.mcpScratch = await mcpCallTool(name, args, "You (scratchpad)"); return render();
+    }
+    case "req-preview": try { state.reqPreview = requestPreview() } catch (e) { toast("Could not build a preview: " + e.message) } return render();
+    case "req-copy": return copyText(state.reqPreview?.curl || "");
+    case "diag-run": state.diag = await diagnostics(); return render();
+    case "diag-copy": return copyText((state.diag || []).map(d => d.k + ": " + d.v).join("\n"));
+    case "web-preset": { const pr = SOURCE_PRESETS[el.dataset.preset]; if (!pr) return; state.settings.webAllowDomains = pr.allow; await saveSettings(); toast("Sources: " + pr.label); return render() }
+    case "skin-css": return copyText(":root{\n" + ["bg", "bg2", "panel", "text", "muted", "accent", "accent2", "blue", "violet", "green"].map(k => "  --" + k + ": " + state.skin[k] + ";").join("\n") + "\n  --radius: " + state.skin.radius + "px;\n  --blur: " + state.skin.blur + "px;\n}");
     case "preset-add": {
       const name = ($("#presetName")?.value || "").trim(), base = $("#presetBase")?.value, system = $("#presetSystem")?.value || "";
       if (!name || !base) return toast("A preset needs a name and a base model.");
@@ -9331,6 +9752,7 @@ async function boot() {
     await bridgeHello(true);
     if (state.bridge.connected && state.settings.beaconAuto) beaconPull({ limit: 200 });
   }
+  for (const srv of mcpServers()) if (srv.enabled !== false) mcpConnect(srv, true);
 
   // First run with no paid provider but a free route available: start in free
   // mode on that route rather than on a blank "no provider" screen. Runs once;
@@ -9379,7 +9801,7 @@ else boot();
 
 /* Exposed for debugging from the console and for the self-test harness. */
 window.SWARM = {
-  state, RUN, render, DB, selfTest, md, doAction, currentSession, msgView, ratingBoard, promptLib, extractMath,
+  state, RUN, render, DB, selfTest, md, doAction, currentSession, applySkin, MCP, mcpConnect, mcpCallTool, mcpToolSchemas, orchestratorTools, domainAllowed, judgePanel, requestPreview, diagnostics, artifactTool, recordSources, msgView, ratingBoard, promptLib, extractMath,
   callModel, callOR, runAgent, runOrchestrator, dispatchTool,
   TOOL_SCHEMAS, AGENT_TOOLS, ROLES, BLUEPRINTS, OPS,
   PROVIDERS, PROVIDER_IDS, parseRef, makeRef, providerReady, providerBlocker, configuredProviders,

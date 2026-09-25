@@ -41,6 +41,11 @@ const ollama = http.createServer((req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: '["What about mobile?","Show a code example","Make it faster"]' }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 9 } }));
       }
+      if (/strict independent judge/.test(sys)) {
+        const score = { "judge-a": 90, "judge-b": 80, "judge-c": 20 }[body.model] ?? 75;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ accepted: score >= 70, score, summary: "s", reason: "r" + score, defects: score < 50 ? ["weak"] : [] }) }, finish_reason: "stop" }] }));
+      }
       if (/MATHTEST/.test(lastText)) return streamSlow(res, "Energy: $E = mc^2$ and $$\\int_0^1 x^2\\,dx$$ but it costs $5 and $10 today.");
       if (/RUNTEST/.test(lastText)) return streamSlow(res, "Try:\n\n```js\nconst xs = [1, 2, 3];\nconsole.log('sum', xs.reduce((a, b) => a + b));\ntry { console.log(parent.SWARM ? 'LEAK' : 'isolated') } catch (e) { console.log('isolated') }\nreturn xs.length;\n```");
       const text = "FAKE-OLLAMA says hi to: " + String(typeof last?.content === "string" ? last.content : JSON.stringify(last?.content)).slice(0, 60);
@@ -95,6 +100,32 @@ async function streamToolCall(res) {
   res.write("data: " + JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] }) + "\n\n");
   res.end("data: [DONE]\n\n");
 }
+/* A small MCP server (streamable HTTP): JSON for most replies, SSE for tools/call. */
+const mcpLog = [];
+const mcp = http.createServer((req, res) => {
+  let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
+    const m = JSON.parse(b || "{}");
+    mcpLog.push({ method: m.method, session: req.headers["mcp-session-id"] || null, auth: req.headers.authorization || null });
+    if (m.method === "initialize") {
+      res.writeHead(200, { "Content-Type": "application/json", "Mcp-Session-Id": "sess-42" });
+      return res.end(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "fake-mcp", version: "1" } } }));
+    }
+    if (!m.id) { res.writeHead(202); return res.end(); }
+    if (req.headers["mcp-session-id"] !== "sess-42") { res.writeHead(400); return res.end("no session"); }
+    if (m.method === "tools/list") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { tools: [{ name: "get_weather", description: "Weather for a city", inputSchema: { type: "object", properties: { city: { type: "string" } }, required: ["city"] } }] } }));
+    }
+    if (m.method === "tools/call") {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.write("event: message\ndata: " + JSON.stringify({ jsonrpc: "2.0", method: "notifications/progress", params: { progress: 1 } }) + "\n\n");
+      return res.end("event: message\ndata: " + JSON.stringify({ jsonrpc: "2.0", id: m.id, result: { content: [{ type: "text", text: "Sunny in " + m.params.arguments.city }] } }) + "\n\n");
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ jsonrpc: "2.0", id: m.id, error: { code: -32601, message: "no such method" } }));
+  });
+});
+
 let bridge, browser, page, skip = null;
 const errors = [];
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "swarm-e2e-home-"));
@@ -103,6 +134,7 @@ before(async () => {
   if (!CHROME) { skip = "no Chromium found (set CHROME_PATH)"; return; }
   try { await new Promise((resolve, reject) => { ollama.once("error", reject); ollama.listen(11434, "127.0.0.1", resolve); }); }
   catch { skip = "port 11434 is in use (a real Ollama?)"; return; }
+  await new Promise((r) => mcp.listen(0, "127.0.0.1", r));
   bridge = await startBridge({
     port: 0, token: "e2e-token", home, env: { PATH: process.env.PATH, HOME: home }, quiet: true, native: true,
     serveApp: path.join(root, "app", "renderer", "swarm-os.html")
@@ -121,6 +153,7 @@ after(async () => {
   await browser?.close();
   await bridge?.close();
   await new Promise((r) => ollama.close(() => r()));
+  mcp.close();
   fs.rmSync(home, { recursive: true, force: true });
 });
 
@@ -405,6 +438,97 @@ test("the web app is installable: manifest, icons and a service worker", async (
   // Inside the Mac app no service worker is registered.
   assert.equal(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), false);
   await ctx.close();
+});
+
+
+test("MCP: connect over streamable HTTP, tools join the swarm, calls need approval unless trusted", async (t) => {
+  if (skip) return t.skip(skip);
+  const url = "http://127.0.0.1:" + mcp.address().port + "/mcp";
+  await page.evaluate(async (u) => {
+    SWARM.state.settings.mcpServers = [{ id: "m1", name: "weather", url: u, token: "tok-1", enabled: true, trusted: false }];
+    await SWARM.mcpConnect(SWARM.state.settings.mcpServers[0], true);
+  }, url);
+  const names = await page.evaluate(() => SWARM.orchestratorTools().map((x) => x.function.name));
+  assert.ok(names.includes("mcp__weather__get_weather"), names.join(","));
+  assert.ok(names.includes("read_artifact") && names.includes("preview_artifact"));
+  assert.equal(mcpLog[0].method, "initialize");
+  assert.equal(mcpLog[0].auth, "Bearer tok-1");
+  assert.equal(mcpLog.find((x) => x.method === "tools/list").session, "sess-42", "session id must be carried (read through the bridge)");
+  // Untrusted: the call waits for a person, in the simple layout too.
+  await page.evaluate(() => { SWARM.state.layout = "simple"; SWARM.render(); window.__mcp = SWARM.mcpCallTool("mcp__weather__get_weather", { city: "Oslo" }, "Test"); });
+  await page.waitForSelector("[data-approve]");
+  await page.click("[data-approve]");
+  const r = await page.evaluate(() => window.__mcp);
+  assert.deepEqual({ ok: r.ok, content: r.content }, { ok: true, content: "Sunny in Oslo" });
+  // Trusted: no prompt.
+  const r2 = await page.evaluate(() => { SWARM.state.settings.mcpServers[0].trusted = true; return SWARM.mcpCallTool("mcp__weather__get_weather", { city: "Rome" }); });
+  assert.equal(r2.content, "Sunny in Rome");
+  await page.evaluate(() => { SWARM.state.layout = "advanced"; SWARM.state.view = "tools"; SWARM.render(); });
+  await page.screenshot({ path: path.join(outDir, "tools-mcp.png") });
+  await page.evaluate(() => { SWARM.state.layout = "simple"; SWARM.render(); });
+});
+
+test("judge panel: three judges, the median score and the majority decide", async (t) => {
+  if (skip) return t.skip(skip);
+  const v = await page.evaluate(async () => {
+    Object.assign(SWARM.state.settings, { judgeFanout: 3, judgeModel: "ollama:judge-a", verifierModel: "ollama:judge-b", defaultAgentModel: "ollama:judge-c", jevJudging: false });
+    const r = await SWARM.judgePanel("some work", "be good", "ollama:judge-a");
+    Object.assign(SWARM.state.settings, { judgeFanout: 1, verifierModel: "ollama:llama3.2:3b", defaultAgentModel: "ollama:llama3.2:3b", judgeModel: "ollama:llama3.2:3b" });
+    return r;
+  });
+  assert.equal(v.score, 80);
+  assert.equal(v.accepted, true);
+  assert.deepEqual(v.panel.map((p) => [p.model, p.score]), [["ollama:judge-a", 90], ["ollama:judge-b", 80], ["ollama:judge-c", 20]]);
+});
+
+test("web source policy blocks and allows by domain", async (t) => {
+  if (skip) return t.skip(skip);
+  const r = await page.evaluate(async () => {
+    const S = SWARM.state.settings;
+    S.webBlockDomains = "example.com"; S.webAllowDomains = "";
+    const a = [SWARM.domainAllowed("https://sub.example.com/x"), SWARM.domainAllowed("https://notexample.com/")];
+    const f = await SWARM.fetchUrl("https://example.com/page");
+    S.webBlockDomains = ""; S.webAllowDomains = "github.com, arxiv.org";
+    const b = [SWARM.domainAllowed("https://github.com/a"), SWARM.domainAllowed("https://docs.github.com/"), SWARM.domainAllowed("https://reddit.com/")];
+    S.webAllowDomains = "";
+    return { a, b, f };
+  });
+  assert.deepEqual(r.a, [false, true]);
+  assert.deepEqual(r.b, [true, true, false]);
+  assert.equal(r.f.ok, false);
+  assert.match(r.f.error, /source policy/);
+});
+
+test("agents can read and show artifacts; request preview and diagnostics work", async (t) => {
+  if (skip) return t.skip(skip);
+  const r = await page.evaluate(async () => {
+    const read = SWARM.artifactTool("read_artifact", { name: "snake.html" });
+    const show = SWARM.artifactTool("preview_artifact", { name: "snake.html" });
+    const miss = SWARM.artifactTool("read_artifact", { name: "nope.xyz" });
+    const pv = SWARM.requestPreview("ollama:llama3.2:3b");
+    const d = await SWARM.diagnostics();
+    return { read: [read.ok, read.version, read.content.includes("<canvas")], show: show.ok, active: SWARM.LIVE.active, miss: miss.ok, curl: pv.curl, diag: d.map((x) => x.k) };
+  });
+  assert.deepEqual(r.read, [true, 2, true]);
+  assert.equal(r.show, true); assert.equal(r.active, "snake.html"); assert.equal(r.miss, false);
+  assert.match(r.curl, /127\.0\.0\.1:11434\/v1\/chat\/completions/);
+  assert.match(r.curl, /"model":"llama3\.2:3b"/);
+  assert.ok(r.diag.includes("Storage") && r.diag.includes("Bridge"));
+});
+
+test("Design Studio: wallpaper, texture and button styles apply", async (t) => {
+  if (skip) return t.skip(skip);
+  const d = await page.evaluate(() => {
+    SWARM.state.view = "studio";
+    const k = { ...SWARM.state.skin, wallpaper: "aurora", texture: "grid", buttonStyle: "neon", buttonShape: "pill" };
+    SWARM.applySkin(k, false);
+    const h = document.documentElement.dataset;
+    const out = { w: h.wallpaper, t: h.texture, b: h.buttons, s: h.shape, bg: getComputedStyle(document.body, "::before").backgroundImage.slice(0, 15) };
+    SWARM.applySkin({ ...k, wallpaper: "none", texture: "none", buttonStyle: "glass", buttonShape: "soft" }, false);
+    return out;
+  });
+  assert.deepEqual({ w: d.w, t: d.t, b: d.b, s: d.s }, { w: "aurora", t: "grid", b: "neon", s: "pill" });
+  assert.match(d.bg, /radial-gradient/);
 });
 
 test("Free AI view renders and screenshots cleanly", async (t) => {
