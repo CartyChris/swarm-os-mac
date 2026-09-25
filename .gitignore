@@ -3,3 +3,4 @@ dist/
 test-results/
 .DS_Store
 *.log
+public/

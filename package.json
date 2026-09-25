@@ -15,13 +15,14 @@
     "start": "electron .",
     "bridge": "node bridge/swarm-bridge.mjs --allow-cli --serve-app app/renderer/swarm-os.html",
     "sync-bridge": "node scripts/sync-bridge.mjs",
-    "test": "node scripts/sync-bridge.mjs --check && node --test test/bridge.test.mjs",
+    "test": "node scripts/sync-bridge.mjs --check && node --test test/bridge.test.mjs test/cloud.test.mjs",
     "test:e2e": "node --test test/app.e2e.mjs",
     "test:electron": "node test/electron.smoke.mjs",
     "icon": "node scripts/make-icon.mjs",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:dir": "electron-builder --dir --publish never",
-    "test:cdn": "node --test test/cdn.e2e.mjs"
+    "test:cdn": "node --test test/cdn.e2e.mjs",
+    "build:web": "node scripts/build-web.mjs"
   },
   "build": {
     "appId": "dev.swarm-os.mac",

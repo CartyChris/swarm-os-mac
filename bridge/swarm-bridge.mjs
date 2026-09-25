@@ -59,7 +59,7 @@ import { fileURLToPath } from "node:url";
 
 export const VERSION = "1.1.0";
 
-const DEFAULT_ALLOWED_HOSTS = [
+export const DEFAULT_ALLOWED_HOSTS = [
   "openrouter.ai", "api.z.ai", "open.bigmodel.cn",
   "api.moonshot.ai", "api.kimi.com",
   "api.anthropic.com", "api.openai.com", "generativelanguage.googleapis.com",

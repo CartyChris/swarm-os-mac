@@ -582,7 +582,7 @@ import { fileURLToPath } from "node:url";
 
 export const VERSION = "1.1.0";
 
-const DEFAULT_ALLOWED_HOSTS = [
+export const DEFAULT_ALLOWED_HOSTS = [
   "openrouter.ai", "api.z.ai", "open.bigmodel.cn",
   "api.moonshot.ai", "api.kimi.com",
   "api.anthropic.com", "api.openai.com", "generativelanguage.googleapis.com",
@@ -1469,6 +1469,9 @@ const BUILD = "2026-09-24";
 /* Set by the macOS app's preload script: the built-in bridge's URL and a fresh
    pairing token. In a plain browser tab this is undefined and nothing changes. */
 const NATIVE = (typeof window !== "undefined" && window.swarmNative) || null;
+/* Served from a real web host (Vercel, a phone, any browser) rather than the
+   Mac app or a local bridge: the bridge, if any, is the cloud bridge at this origin. */
+const HOSTED = !NATIVE && typeof location !== "undefined" && location.protocol === "https:" && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
 const DB_NAME = "swarm_os_v3";
 
 /* ---------------------------------------------------------------- utilities */
@@ -2375,7 +2378,7 @@ async function bridgeHello(quiet = true) {
       cli: j.cli || [], searchCli: j.searchCli || [],
       clis: j.clis || [], localServers: j.localServers || [],
       allowCli: !!j.allowCli, skillsDir: j.skillsDir || "",
-      allowSandbox: !!j.allowSandbox, native: !!j.native,
+      allowSandbox: !!j.allowSandbox, native: !!j.native, cloud: !!j.cloud,
       continue: j.continue || null,
       allowed: j.allowed || [], checkedAt: ts(), error: ""
     };
@@ -4783,7 +4786,8 @@ function renderFree() {
       <div class="metric"><b>${cont?.present ? (cont.models || []).length : "—"}</b><span>Continue models</span></div>
     </div>
 
-    ${!b.connected ? `<div class="banner warn"><span>⚠</span><div>The bridge is not connected, so local servers cannot be detected. ${NATIVE ? "It is built into this app — try Rescan." : "Open Bridge &amp; CLIs to start it."}</div></div>` : ""}
+    ${HOSTED ? `<div class="banner"><span>☁</span><div>You are using the web version. Model servers on your own computer are not reachable from here — the free route on this device is the <b>OpenRouter free pool</b> below (sign in, then turn free mode on). For unlimited local models, use the Mac app.</div></div>`
+      : !b.connected ? `<div class="banner warn"><span>⚠</span><div>The bridge is not connected, so local servers cannot be detected. ${NATIVE ? "It is built into this app — try Rescan." : "Open Bridge &amp; CLIs to start it."}</div></div>` : ""}
     ${s.freeMode && !cands.length ? `<div class="banner warn"><span>⚠</span><div>Free mode is on but no free model is reachable, so every call will be refused. Start a local server below, or add a free OpenRouter key.</div></div>` : ""}
 
     <div class="panel">
@@ -4908,6 +4912,8 @@ function renderBridge() {
        <button class="btn" data-action="copy-bridge">Copy the script</button>
        <button class="btn" data-action="bridge-connect">${b.connected ? "Reconnect" : "Connect"}</button>`)}
 
+    ${HOSTED ? `<div class="banner ${b.connected ? "ok" : "warn"}"><span>☁</span><div><b>${b.connected ? "Cloud bridge connected." : state.bridge.cloudAvailable === "unconfigured" ? "This deployment has a cloud bridge, but it is not set up yet." : "This deployment has a cloud bridge."}</b>
+      <p class="subtle" style="margin-top:4px">It reaches the providers that block browsers and can attach API keys you store in Vercel's environment variables, so they never live on this device. Pair it once per device: the URL is <span class="mono">${esc(location.origin)}</span> and the token is <span class="mono">SWARM_BRIDGE_TOKEN</span> in the Vercel project's Settings → Environment Variables. It cannot run coding CLIs or see model servers on your computer; the Mac app does that.</p></div></div>` : ""}
     ${NATIVE ? `<div class="panel">
       <div class="panel-title"><div><h3>Built into this app</h3><p>The bridge runs inside SWARM OS for Mac, bound to 127.0.0.1, and pairs itself with a fresh token every launch. Nothing to run or paste.</p></div>
         <span class="pill ${b.connected ? "ok" : "bad"}">${b.connected ? "running · v" + esc(b.version) : "not connected"}</span></div>
@@ -5142,7 +5148,7 @@ function renderSimple() {
               ["Settle an argument", "Postgres or SQLite for a single-server app with 50k daily writes? Run a real debate and decide."]
             ].map(([t, p]) => `<button class="simple-card" data-example="${esc(p)}"><b>${esc(t)}</b><span>${esc(p.slice(0, 74))}…</span></button>`).join("")}
           </div>
-          ${ready.length ? "" : `<div class="banner warn" style="margin-top:20px;text-align:left"><span>⚠</span><div>No provider is set up yet, so nothing will actually run. <button class="btn tiny" data-action="layout-advanced-providers">Add one — it takes a minute</button></div></div>`}
+          ${ready.length ? "" : `<div class="banner warn" style="margin-top:20px;text-align:left"><span>⚠</span><div>No provider is set up yet, so nothing will actually run. <button class="btn tiny" data-action="or-oauth">Sign in with OpenRouter</button> <span class="subtle">(free models included)</span> or <button class="btn tiny" data-action="layout-advanced-providers">add a key</button>${HOSTED && state.bridge.cloudAvailable === "yes" ? ` or <button class="btn tiny" data-action="layout-advanced-bridge">pair the cloud bridge</button>` : ""}</div></div>`}
         </div>`
       : s.messages.map(renderMessage).join("")}
     </main>
@@ -9067,6 +9073,7 @@ async function doAction(action, el) {
     case "or-oauth": return startOpenRouterOAuth();
     case "layout-simple": { state.layout = "simple"; state.settings.layout = "simple"; await saveSettings(); return render() }
     case "layout-advanced": { state.layout = "advanced"; state.settings.layout = "advanced"; state.view = "chat"; await saveSettings(); return render() }
+    case "layout-advanced-bridge": { state.layout = "advanced"; state.settings.layout = "advanced"; state.view = "bridge"; await saveSettings(); return render() }
     case "layout-advanced-free": { state.layout = "advanced"; state.settings.layout = "advanced"; state.view = "free"; await saveSettings(); return render() }
     case "layout-advanced-providers": { state.layout = "advanced"; state.settings.layout = "advanced"; state.view = "providers"; await saveSettings(); return render() }
     case "layout-advanced-swarm": { state.layout = "advanced"; state.settings.layout = "advanced"; state.view = "swarm"; await saveSettings(); return render() }
@@ -9748,6 +9755,11 @@ async function boot() {
     state.settings.bridgeAuto = true;
   }
 
+  if (HOSTED && (!state.settings.bridgeUrl || state.settings.bridgeUrl === DEFAULT_SETTINGS.bridgeUrl)) state.settings.bridgeUrl = location.origin;
+  if (HOSTED && !state.settings.bridgeToken) {
+    // Is there a cloud bridge here? 401 = yes, waiting for its token; 503 = deployed but not set up.
+    fetch(location.origin + "/v1/hello").then(r => { state.bridge.cloudAvailable = r.status === 401 ? "yes" : r.status === 503 ? "unconfigured" : "no"; scheduleRender() }).catch(() => {});
+  }
   if (state.settings.bridgeAuto && state.settings.bridgeToken) {
     await bridgeHello(true);
     if (state.bridge.connected && state.settings.beaconAuto) beaconPull({ limit: 200 });
