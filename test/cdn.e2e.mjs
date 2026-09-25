@@ -56,8 +56,10 @@ test("Python runs in the browser sandbox via Pyodide", async (t) => {
 test("a Mermaid artifact renders as a diagram", async (t) => {
   if (skip) return t.skip(skip);
   await artifact("flow.mmd", "mermaid", "graph TD\n  A[Ask] --> B{Swarm}\n  B --> C[Artifact]");
-  await dock().locator("svg").first().waitFor({ timeout: 30000 });
-  assert.match(await dock().locator("svg").first().innerHTML(), /Swarm/);
+  // Mermaid also inserts helper <svg>s; wait for the one that is the diagram.
+  const diagram = dock().locator("svg").filter({ hasText: "Swarm" }).first();
+  await diagram.waitFor({ timeout: 30000 });
+  assert.match(await diagram.textContent(), /Ask[\s\S]*Swarm[\s\S]*Artifact/);
 });
 
 test("a React artifact compiles and renders (hooks and Tailwind available)", async (t) => {
